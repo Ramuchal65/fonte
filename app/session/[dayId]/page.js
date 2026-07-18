@@ -1,8 +1,39 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import RestTimer from '@/components/RestTimer'
+import TopNav from '@/components/TopNav'
+
+// Construit la séquence linéaire d'étapes à partir des groupes de la journée.
+// Classique : exercice répété "rounds" fois d'affilée (repos après chaque série).
+// Circuit : chaque exercice une fois par tour, dans l'ordre, répété "rounds" fois
+// (pas de repos entre les exercices d'un même tour, repos après un tour complet).
+function buildSteps(groups) {
+  const steps = []
+  groups.forEach(group => {
+    for (let round = 1; round <= group.rounds; round++) {
+      group.group_exercises
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .forEach((ex, exIdx, arr) => {
+          const isLastInRound = exIdx === arr.length - 1
+          steps.push({
+            exerciseName: ex.name,
+            targetReps: ex.target_reps,
+            targetWeightKg: ex.target_weight_kg,
+            groupType: group.type,
+            round,
+            totalRounds: group.rounds,
+            restSeconds: group.rest_seconds,
+            // en classique, repos après chaque étape ; en circuit, seulement après le dernier exercice du tour
+            restAfter: group.type === 'classique' || isLastInRound
+          })
+        })
+    }
+  })
+  return steps
+}
 
 export default function SessionPage() {
   const { dayId } = useParams()
@@ -11,12 +42,15 @@ export default function SessionPage() {
 
   const [user, setUser] = useState(null)
   const [dayLabel, setDayLabel] = useState('')
-  const [exercises, setExercises] = useState([])
-  const [previousPerf, setPreviousPerf] = useState({}) // { exerciseName: [{reps, weight_kg, set_number}] }
-  const [logged, setLogged] = useState({}) // { exerciseName: { setNumber: {reps, weight_kg} } }
+  const [steps, setSteps] = useState([])
+  const [previousPerf, setPreviousPerf] = useState({})
   const [sessionId, setSessionId] = useState(null)
-  const [restFor, setRestFor] = useState(null) // { seconds, key } | null
   const [loading, setLoading] = useState(true)
+
+  const [stepIdx, setStepIdx] = useState(0)
+  const [phase, setPhase] = useState('exercise') // 'exercise' | 'resting' | 'done'
+  const [elapsed, setElapsed] = useState(0)
+  const [inputs, setInputs] = useState({ reps: '', weight: '' })
 
   useEffect(() => {
     async function init() {
@@ -31,12 +65,14 @@ export default function SessionPage() {
         .single()
       setDayLabel(day?.label ?? '')
 
-      const { data: ex } = await supabase
-        .from('planned_exercises')
-        .select('*')
+      const { data: groups } = await supabase
+        .from('exercise_groups')
+        .select('id, position, type, rounds, rest_seconds, group_exercises(*)')
         .eq('program_day_id', dayId)
         .order('position')
-      setExercises(ex ?? [])
+
+      const builtSteps = buildSteps(groups ?? [])
+      setSteps(builtSteps)
 
       const { data: sess } = await supabase
         .from('sessions')
@@ -45,16 +81,22 @@ export default function SessionPage() {
         .single()
       setSessionId(sess.id)
 
+      const uniqueNames = [...new Set(builtSteps.map(s => s.exerciseName))]
       const perfs = {}
-      for (const e of ex ?? []) {
+      for (const name of uniqueNames) {
         const { data: sets } = await supabase
           .from('logged_sets')
           .select('reps, weight_kg, set_number, logged_at, sessions!inner(user_id)')
-          .eq('exercise_name', e.name)
+          .eq('exercise_name', name)
           .eq('sessions.user_id', u.id)
           .order('logged_at', { ascending: false })
-          .limit(e.target_sets)
-        perfs[e.name] = (sets ?? []).slice().reverse()
+          .limit(50)
+        // Pour chaque numéro de série/tour, on ne garde que l'entrée la plus récente
+        const bySetNumber = {}
+        for (const s of sets ?? []) {
+          if (!(s.set_number in bySetNumber)) bySetNumber[s.set_number] = s
+        }
+        perfs[name] = bySetNumber
       }
       setPreviousPerf(perfs)
       setLoading(false)
@@ -62,20 +104,47 @@ export default function SessionPage() {
     init()
   }, [dayId])
 
-  const logSet = async (exercise, setNumber, reps, weightKg) => {
-    if (!reps || !weightKg) return
+  useEffect(() => {
+    if (phase !== 'exercise') return
+    setElapsed(0)
+    const interval = setInterval(() => setElapsed(e => e + 1), 1000)
+    return () => clearInterval(interval)
+  }, [stepIdx, phase])
+
+  const currentStep = steps[stepIdx]
+
+  const previousForCurrent = useMemo(() => {
+    if (!currentStep) return null
+    const bySetNumber = previousPerf[currentStep.exerciseName] || {}
+    return bySetNumber[currentStep.round] || null
+  }, [currentStep, previousPerf])
+
+  const finishStep = async () => {
+    if (!inputs.reps || !inputs.weight) return
     await supabase.from('logged_sets').insert({
       session_id: sessionId,
-      exercise_name: exercise.name,
-      set_number: setNumber,
-      reps: Number(reps),
-      weight_kg: Number(weightKg)
+      exercise_name: currentStep.exerciseName,
+      set_number: currentStep.round,
+      reps: Number(inputs.reps),
+      weight_kg: Number(inputs.weight)
     })
-    setLogged(prev => ({
-      ...prev,
-      [exercise.name]: { ...(prev[exercise.name] || {}), [setNumber]: { reps, weight_kg: weightKg } }
-    }))
-    setRestFor({ seconds: exercise.rest_seconds, key: `${exercise.name}-${setNumber}-${Date.now()}` })
+    setInputs({ reps: '', weight: '' })
+
+    const isLastStep = stepIdx === steps.length - 1
+    if (isLastStep) {
+      setPhase('done')
+      return
+    }
+    if (currentStep.restAfter) {
+      setPhase('resting')
+    } else {
+      setStepIdx(i => i + 1)
+    }
+  }
+
+  const afterRest = () => {
+    setStepIdx(i => i + 1)
+    setPhase('exercise')
   }
 
   const finishSession = async () => {
@@ -83,90 +152,84 @@ export default function SessionPage() {
     router.push('/')
   }
 
-  if (loading) return <div className="container"><p className="muted">Chargement…</p></div>
+  const abandonSession = async () => {
+    await supabase.from('sessions').delete().eq('id', sessionId)
+    router.push('/')
+  }
+
+  if (loading) return <div className="container"><TopNav /><p className="muted">Chargement…</p></div>
+
+  if (steps.length === 0) {
+    return (
+      <div className="container">
+        <TopNav />
+        <p className="muted">Ce jour n'a aucun exercice configuré.</p>
+      </div>
+    )
+  }
+
+  const mm = String(Math.floor(elapsed / 60)).padStart(2, '0')
+  const ss = String(elapsed % 60).padStart(2, '0')
 
   return (
     <div className="container">
-      <h1 style={{ fontSize: 24, marginBottom: 4 }}>{dayLabel}</h1>
-      <p className="muted" style={{ marginBottom: 20 }}>Séance en cours</p>
+      <TopNav title={dayLabel} onAbandon={abandonSession} />
 
-      {restFor && (
-        <div style={{ marginBottom: 20 }}>
-          <RestTimer seconds={restFor.seconds} resetKey={restFor.key} onDone={() => {}} />
-        </div>
+      <p className="muted tabular" style={{ fontSize: 13, marginBottom: 16 }}>
+        Étape {Math.min(stepIdx + 1, steps.length)} / {steps.length}
+      </p>
+
+      {phase === 'resting' && currentStep && (
+        <RestTimer seconds={currentStep.restSeconds} resetKey={stepIdx} onDone={afterRest} />
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {exercises.map(ex => (
-          <ExerciseBlock
-            key={ex.id}
-            exercise={ex}
-            previous={previousPerf[ex.name] || []}
-            loggedSets={logged[ex.name] || {}}
-            onLogSet={(setNumber, reps, weight) => logSet(ex, setNumber, reps, weight)}
-          />
-        ))}
-      </div>
+      {phase === 'exercise' && currentStep && (
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+            <span className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {currentStep.groupType === 'circuit' ? `Circuit · tour ${currentStep.round}/${currentStep.totalRounds}` : `Série ${currentStep.round}/${currentStep.totalRounds}`}
+            </span>
+            <span className="muted tabular" style={{ fontSize: 13 }}>{mm}:{ss}</span>
+          </div>
 
-      <button className="btn btn-primary btn-block" style={{ marginTop: 24 }} onClick={finishSession}>
-        Terminer la séance
-      </button>
-    </div>
-  )
-}
+          <h2 style={{ fontSize: 24, marginBottom: 8 }}>{currentStep.exerciseName}</h2>
+          <p className="muted" style={{ fontSize: 14, marginBottom: 16 }}>
+            Cible : {currentStep.targetReps} reps
+            {currentStep.targetWeightKg ? ` @ ${currentStep.targetWeightKg} kg` : ''}
+            {previousForCurrent ? ` · précédent : ${previousForCurrent.weight_kg} kg × ${previousForCurrent.reps}` : ''}
+          </p>
 
-function ExerciseBlock({ exercise, previous, loggedSets, onLogSet }) {
-  const [inputs, setInputs] = useState({}) // { setNumber: {reps, weight} }
-
-  const setInput = (setNumber, field, value) => {
-    setInputs(prev => ({ ...prev, [setNumber]: { ...prev[setNumber], [field]: value } }))
-  }
-
-  return (
-    <div className="card">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
-        <h3 style={{ fontSize: 17 }}>{exercise.name}</h3>
-        <span className="muted" style={{ fontSize: 13 }}>
-          {exercise.target_sets} × {exercise.target_reps}
-          {exercise.superset_group ? ` · superset ${exercise.superset_group}` : ''}
-        </span>
-      </div>
-
-      {Array.from({ length: exercise.target_sets }, (_, i) => i + 1).map(setNumber => {
-        const prev = previous[setNumber - 1]
-        const done = loggedSets[setNumber]
-        return (
-          <div key={setNumber} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-            <span className="muted tabular" style={{ width: 18, fontSize: 13 }}>{setNumber}</span>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <input
               type="number"
               inputMode="decimal"
-              placeholder={prev ? `${prev.weight_kg} kg` : 'kg'}
-              defaultValue={done?.weight_kg ?? ''}
-              disabled={!!done}
-              onChange={e => setInput(setNumber, 'weight', e.target.value)}
-              style={{ flex: 1 }}
+              placeholder={previousForCurrent ? `${previousForCurrent.weight_kg} kg` : 'kg'}
+              value={inputs.weight}
+              onChange={e => setInputs(prev => ({ ...prev, weight: e.target.value }))}
             />
             <input
               type="number"
               inputMode="numeric"
-              placeholder={prev ? `${prev.reps} reps` : 'reps'}
-              defaultValue={done?.reps ?? ''}
-              disabled={!!done}
-              onChange={e => setInput(setNumber, 'reps', e.target.value)}
-              style={{ flex: 1 }}
+              placeholder={previousForCurrent ? `${previousForCurrent.reps} reps` : 'reps'}
+              value={inputs.reps}
+              onChange={e => setInputs(prev => ({ ...prev, reps: e.target.value }))}
             />
-            <button
-              className="btn btn-secondary"
-              disabled={!!done}
-              onClick={() => onLogSet(setNumber, inputs[setNumber]?.reps, inputs[setNumber]?.weight)}
-              style={{ minWidth: 44, padding: '10px 12px' }}
-            >
-              {done ? '✓' : 'OK'}
-            </button>
           </div>
-        )
-      })}
+
+          <button className="btn btn-primary btn-block" onClick={finishStep}>
+            Exercice terminé
+          </button>
+        </div>
+      )}
+
+      {phase === 'done' && (
+        <div className="card" style={{ textAlign: 'center' }}>
+          <h2 style={{ fontSize: 22, marginBottom: 12 }}>Séance terminée</h2>
+          <button className="btn btn-primary btn-block" onClick={finishSession}>
+            Retour à l'accueil
+          </button>
+        </div>
+      )}
     </div>
   )
 }
