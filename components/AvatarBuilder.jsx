@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import PixelAvatar from './PixelAvatar'
-import { HAIRSTYLES, HAIR_COLORS, FACIAL_HAIR, OUTFITS, BODY_SIZES, SKIN_TONES, DEFAULT_AVATAR } from '@/lib/avatarOptions'
+import { HAIRSTYLES, HAIR_COLORS, FACIAL_HAIR, OUTFITS, SKIN_TONES, SHOE_COLORS, DEFAULT_AVATAR } from '@/lib/avatarOptions'
 
 function SwatchButton({ active, onClick, children, style }) {
   return (
@@ -22,6 +22,19 @@ function SwatchButton({ active, onClick, children, style }) {
   )
 }
 
+function ColorSwatch({ active, onClick, hex, label }) {
+  return (
+    <button
+      aria-label={label}
+      onClick={onClick}
+      style={{
+        width: 36, height: 36, borderRadius: '50%', background: hex,
+        border: active ? '3px solid var(--accent)' : '3px solid var(--border)'
+      }}
+    />
+  )
+}
+
 export default function AvatarBuilder({
   initialAvatar = DEFAULT_AVATAR,
   initialPseudo = '',
@@ -31,7 +44,7 @@ export default function AvatarBuilder({
   error = '',
   submitLabel = 'Enregistrer'
 }) {
-  const [avatar, setAvatar] = useState(initialAvatar)
+  const [avatar, setAvatar] = useState({ ...DEFAULT_AVATAR, ...initialAvatar })
   const [pseudo, setPseudo] = useState(initialPseudo)
 
   const set = (field, value) => setAvatar(prev => ({ ...prev, [field]: value }))
@@ -39,7 +52,7 @@ export default function AvatarBuilder({
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
-        <PixelAvatar avatar={avatar} size={140} />
+        <PixelAvatar avatar={avatar} size={120} />
       </div>
 
       {showPseudoField && (
@@ -57,17 +70,9 @@ export default function AvatarBuilder({
       )}
 
       <Section label="Couleur de peau">
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {SKIN_TONES.map(s => (
-            <button
-              key={s.id}
-              aria-label={s.label}
-              onClick={() => set('skinTone', s.id)}
-              style={{
-                width: 36, height: 36, borderRadius: '50%', background: s.hex,
-                border: avatar.skinTone === s.id ? '3px solid var(--accent)' : '3px solid var(--border)'
-              }}
-            />
+            <ColorSwatch key={s.id} active={avatar.skinTone === s.id} onClick={() => set('skinTone', s.id)} hex={s.hex} label={s.label} />
           ))}
         </div>
       </Section>
@@ -85,15 +90,7 @@ export default function AvatarBuilder({
       <Section label="Couleur de cheveux">
         <div style={{ display: 'flex', gap: 10 }}>
           {HAIR_COLORS.map(c => (
-            <button
-              key={c.id}
-              aria-label={c.label}
-              onClick={() => set('hairColor', c.id)}
-              style={{
-                width: 36, height: 36, borderRadius: '50%', background: c.hex,
-                border: avatar.hairColor === c.id ? '3px solid var(--accent)' : '3px solid var(--border)'
-              }}
-            />
+            <ColorSwatch key={c.id} active={avatar.hairColor === c.id} onClick={() => set('hairColor', c.id)} hex={c.hex} label={c.label} />
           ))}
         </div>
       </Section>
@@ -116,7 +113,7 @@ export default function AvatarBuilder({
       </Section>
 
       <Section label="Tenue de sport">
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {OUTFITS.map(o => (
             <button
               key={o.id}
@@ -134,12 +131,10 @@ export default function AvatarBuilder({
         </div>
       </Section>
 
-      <Section label="Carrure">
-        <div style={{ display: 'flex', gap: 8 }}>
-          {BODY_SIZES.map(s => (
-            <SwatchButton key={s.id} active={avatar.bodySize === s.id} onClick={() => set('bodySize', s.id)}>
-              {s.label}
-            </SwatchButton>
+      <Section label="Couleur de chaussures">
+        <div style={{ display: 'flex', gap: 10 }}>
+          {SHOE_COLORS.map(s => (
+            <ColorSwatch key={s.id} active={avatar.shoeColor === s.id} onClick={() => set('shoeColor', s.id)} hex={s.hex} label={s.label} />
           ))}
         </div>
       </Section>
