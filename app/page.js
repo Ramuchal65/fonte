@@ -77,6 +77,9 @@ export default function Home() {
               Mes programmes
             </Link>
           )}
+          <Link href="/history" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
+            Historique
+          </Link>
           <Link href="/import" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
             {program ? 'Nouveau programme' : 'Importer un programme'}
           </Link>
