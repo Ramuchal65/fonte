@@ -71,9 +71,16 @@ export default function Home() {
     <div className="container">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 24 }}>
         <h1 style={{ fontSize: 28 }}>Fonte</h1>
-        <Link href="/import" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
-          {program ? 'Nouveau programme' : 'Importer un programme'}
-        </Link>
+        <div style={{ display: 'flex', gap: 16 }}>
+          {program && (
+            <Link href="/programs" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
+              Mes programmes
+            </Link>
+          )}
+          <Link href="/import" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
+            {program ? 'Nouveau programme' : 'Importer un programme'}
+          </Link>
+        </div>
       </header>
 
       {loading && <p className="muted">Chargement…</p>}
