@@ -4,6 +4,8 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import RestTimer from '@/components/RestTimer'
 import TopNav from '@/components/TopNav'
+import CoachAvatar from '@/components/CoachAvatar'
+import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
 
 // Construit la séquence linéaire d'étapes à partir des groupes de la journée.
 // Classique : exercice répété "rounds" fois d'affilée (repos après chaque série).
@@ -41,6 +43,7 @@ export default function SessionPage() {
   const supabase = createClient()
 
   const [user, setUser] = useState(null)
+  const [profileAvatar, setProfileAvatar] = useState(null)
   const [dayLabel, setDayLabel] = useState('')
   const [steps, setSteps] = useState([])
   const [previousPerf, setPreviousPerf] = useState({})
@@ -57,6 +60,13 @@ export default function SessionPage() {
       const { data: { user: u } } = await supabase.auth.getUser()
       if (!u) { router.push('/'); return }
       setUser(u)
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('avatar')
+        .eq('user_id', u.id)
+        .maybeSingle()
+      setProfileAvatar(profile?.avatar ? { ...DEFAULT_AVATAR, ...profile.avatar } : DEFAULT_AVATAR)
 
       const { data: day } = await supabase
         .from('program_days')
@@ -180,11 +190,19 @@ export default function SessionPage() {
       </p>
 
       {phase === 'resting' && currentStep && (
-        <RestTimer seconds={currentStep.restSeconds} resetKey={stepIdx} onDone={afterRest} />
+        <>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+            <CoachAvatar avatar={profileAvatar} mode="resting" size={110} />
+          </div>
+          <RestTimer seconds={currentStep.restSeconds} resetKey={stepIdx} onDone={afterRest} />
+        </>
       )}
 
       {phase === 'exercise' && currentStep && (
         <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+            <CoachAvatar avatar={profileAvatar} mode="exercise" size={110} />
+          </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
             <span className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {currentStep.groupType === 'circuit' ? `Circuit · tour ${currentStep.round}/${currentStep.totalRounds}` : `Série ${currentStep.round}/${currentStep.totalRounds}`}
