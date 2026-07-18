@@ -1,12 +1,17 @@
 'use client'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import LoginButton from '@/components/LoginButton'
+import PixelAvatar from '@/components/PixelAvatar'
+import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
 
 export default function Home() {
   const supabase = createClient()
+  const router = useRouter()
   const [user, setUser] = useState(undefined) // undefined = pas encore chargé
+  const [profile, setProfile] = useState(undefined)
   const [program, setProgram] = useState(null)
   const [days, setDays] = useState([])
   const [loading, setLoading] = useState(true)
@@ -25,6 +30,21 @@ export default function Home() {
 
     async function load() {
       setLoading(true)
+
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('pseudo, avatar')
+        .eq('user_id', user.id)
+        .maybeSingle()
+
+      if (cancelled) return
+
+      if (!prof) {
+        router.push('/onboarding')
+        return
+      }
+      setProfile(prof)
+
       const { data: prog } = await supabase
         .from('programs')
         .select('id, name, created_at')
@@ -67,11 +87,16 @@ export default function Home() {
     )
   }
 
+  if (!profile) return null // redirection vers /onboarding en cours
+
   return (
     <div className="container">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 28 }}>Fonte</h1>
-        <div style={{ display: 'flex', gap: 16 }}>
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <Link href="/profile" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
+          <PixelAvatar avatar={{ ...DEFAULT_AVATAR, ...profile.avatar }} size={40} />
+          <span style={{ fontSize: 15, fontWeight: 600 }}>{profile.pseudo}</span>
+        </Link>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
           {program && (
             <Link href="/programs" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
               Mes programmes
