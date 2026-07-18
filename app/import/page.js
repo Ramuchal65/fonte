@@ -51,6 +51,16 @@ export default function ImportPage() {
     setStatus('saving')
     const { data: { user } } = await supabase.auth.getUser()
 
+    // On archive le(s) programme(s) actif(s) existant(s) avant d'en créer un nouveau,
+    // pour n'avoir jamais qu'un seul programme actif à la fois, sans perdre les anciens.
+    const { error: archiveErr } = await supabase
+      .from('programs')
+      .update({ archived_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .is('archived_at', null)
+
+    if (archiveErr) { setErrorMsg(archiveErr.message); setStatus('error'); return }
+
     const { data: program, error: progErr } = await supabase
       .from('programs')
       .insert({ user_id: user.id, name: programName || 'Programme sans nom', source_text: text })
