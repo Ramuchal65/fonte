@@ -2,7 +2,7 @@
 import { HAIR_COLORS, OUTFITS, SKIN_TONES, SHOE_COLORS } from '@/lib/avatarOptions'
 import { buildAvatarCanvas, GRID_W, GRID_H } from '@/lib/pixelAvatarEngine'
 
-export default function PixelAvatar({ avatar, size = 100 }) {
+export default function PixelAvatar({ avatar, size = 100, pose = 'stand', sweat = false }) {
   const skinHex = SKIN_TONES.find(s => s.id === avatar.skinTone)?.hex || SKIN_TONES[1].hex
   const hairHex = HAIR_COLORS.find(c => c.id === avatar.hairColor)?.hex || '#5C3A21'
   const shoeHex = SHOE_COLORS.find(s => s.id === avatar.shoeColor)?.hex || SHOE_COLORS[0].hex
@@ -15,7 +15,9 @@ export default function PixelAvatar({ avatar, size = 100 }) {
     glasses: avatar.glasses,
     facialHair: avatar.facialHair,
     outfit,
-    shoeHex
+    shoeHex,
+    pose,
+    sweat
   })
 
   const rects = []
