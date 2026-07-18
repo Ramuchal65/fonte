@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
+import TopNav from '@/components/TopNav'
 
 export default function ProgramsPage() {
   const supabase = createClient()
@@ -49,10 +50,19 @@ export default function ProgramsPage() {
     router.push('/')
   }
 
+  const [confirmingDelete, setConfirmingDelete] = useState(null)
+
+  const deleteProgram = async (programId) => {
+    await supabase.from('programs').delete().eq('id', programId)
+    setConfirmingDelete(null)
+    load()
+  }
+
   if (loading) return <div className="container"><p className="muted">Chargement…</p></div>
 
   return (
     <div className="container">
+      <TopNav />
       <h1 style={{ fontSize: 24, marginBottom: 4 }}>Mes programmes</h1>
       <p className="muted" style={{ marginBottom: 20 }}>
         Un seul programme actif à la fois. Les anciens restent ici, ton historique de perfs est conservé.
@@ -60,19 +70,40 @@ export default function ProgramsPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {programs.map(p => (
-          <div key={p.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <p style={{ fontWeight: 600 }}>{p.name}</p>
-              <p className="muted" style={{ fontSize: 13 }}>
-                {new Date(p.created_at).toLocaleDateString('fr-FR')}
-                {!p.archived_at && ' · actif'}
-              </p>
+          <div key={p.id} className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontWeight: 600 }}>{p.name}</p>
+                <p className="muted" style={{ fontSize: 13 }}>
+                  {new Date(p.created_at).toLocaleDateString('fr-FR')}
+                  {!p.archived_at && ' · actif'}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {p.archived_at && (
+                  <button className="btn btn-secondary" onClick={() => reactivate(p.id)}>
+                    Rendre actif
+                  </button>
+                )}
+                {confirmingDelete === p.id ? (
+                  <button
+                    className="btn"
+                    style={{ background: 'var(--accent)', color: '#14140F' }}
+                    onClick={() => deleteProgram(p.id)}
+                  >
+                    Confirmer
+                  </button>
+                ) : (
+                  <button
+                    className="muted"
+                    style={{ background: 'none', border: 'none', fontSize: 13, textDecoration: 'underline' }}
+                    onClick={() => setConfirmingDelete(p.id)}
+                  >
+                    Supprimer
+                  </button>
+                )}
+              </div>
             </div>
-            {p.archived_at && (
-              <button className="btn btn-secondary" onClick={() => reactivate(p.id)}>
-                Rendre actif
-              </button>
-            )}
           </div>
         ))}
         {programs.length === 0 && <p className="muted">Aucun programme pour l'instant.</p>}
