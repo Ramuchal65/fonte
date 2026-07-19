@@ -97,6 +97,9 @@ export default function Home() {
           <span style={{ fontSize: 15, fontWeight: 600 }}>{profile.pseudo}</span>
         </Link>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <Link href="/salle" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
+            Ma salle
+          </Link>
           {program && (
             <Link href="/programs" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
               Mes programmes
