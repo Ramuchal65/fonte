@@ -6,6 +6,7 @@ import RestTimer from '@/components/RestTimer'
 import TopNav from '@/components/TopNav'
 import CoachAvatar from '@/components/CoachAvatar'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
+import { addXpAfterSession } from '@/lib/gamification'
 
 // Construit la séquence linéaire d'étapes à partir des groupes de la journée.
 // Classique : exercice répété "rounds" fois d'affilée (repos après chaque série).
@@ -159,7 +160,12 @@ export default function SessionPage() {
 
   const finishSession = async () => {
     await supabase.from('sessions').update({ finished_at: new Date().toISOString() }).eq('id', sessionId)
-    router.push('/')
+    try {
+      await addXpAfterSession(supabase, user.id, steps.length, sessionId)
+    } catch (e) {
+      console.error('XP non comptabilisée :', e)
+    }
+    router.push('/salle')
   }
 
   const abandonSession = async () => {
