@@ -4,7 +4,12 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import TopNav from '@/components/TopNav'
 import EquipmentChoiceModal from '@/components/EquipmentChoiceModal'
-import { getRoomState } from '@/lib/gamification'
+import { getRoomState, debugAddXp, debugResetProgression } from '@/lib/gamification'
+
+// Outils de test visibles tant que cette variable n'est pas explicitement
+// mise à "false" dans les Environment Variables Vercel. Pense à la passer
+// à "false" avant un lancement public.
+const DEBUG_TOOLS_ENABLED = process.env.NEXT_PUBLIC_DEBUG_TOOLS !== 'false'
 
 export default function SallePage() {
   const router = useRouter()
@@ -12,12 +17,38 @@ export default function SallePage() {
   const [user, setUser] = useState(null)
   const [room, setRoom] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const load = useCallback(async (uid) => {
-    const state = await getRoomState(supabase, uid)
-    setRoom(state)
+    setError(null)
+    try {
+      const state = await getRoomState(supabase, uid)
+      setRoom(state)
+    } catch (e) {
+      console.error('Erreur chargement Ma salle :', e)
+      setError(e.message || 'Erreur inconnue')
+    }
     setLoading(false)
   }, [])
+
+  const [debugBusy, setDebugBusy] = useState(false)
+
+  const handleDebugAddXp = async (amount) => {
+    if (!user || debugBusy) return
+    setDebugBusy(true)
+    await debugAddXp(supabase, user.id, amount)
+    await load(user.id)
+    setDebugBusy(false)
+  }
+
+  const handleDebugReset = async () => {
+    if (!user || debugBusy) return
+    if (!confirm('Réinitialiser toute ta progression (XP, niveau, équipements débloqués) ?')) return
+    setDebugBusy(true)
+    await debugResetProgression(supabase, user.id)
+    await load(user.id)
+    setDebugBusy(false)
+  }
 
   useEffect(() => {
     async function init() {
@@ -29,11 +60,26 @@ export default function SallePage() {
     init()
   }, [load])
 
-  if (loading || !room) {
+  if (loading) {
     return (
       <div className="container">
         <TopNav />
         <p className="muted">Chargement…</p>
+      </div>
+    )
+  }
+
+  if (error || !room) {
+    return (
+      <div className="container">
+        <TopNav />
+        <div className="card">
+          <p style={{ marginBottom: 12 }}>Impossible de charger ta salle.</p>
+          {error && <p className="muted" style={{ fontSize: 13, marginBottom: 16 }}>{error}</p>}
+          <button className="btn btn-primary btn-block" onClick={() => { setLoading(true); load(user.id) }}>
+            Réessayer
+          </button>
+        </div>
       </div>
     )
   }
@@ -107,6 +153,33 @@ export default function SallePage() {
       <p className="muted" style={{ fontSize: 13, marginTop: 16, textAlign: 'center' }}>
         {room.unlocked_equipment.length} / {room.max_level} équipements débloqués
       </p>
+
+      {DEBUG_TOOLS_ENABLED && (
+        <div className="card" style={{ marginTop: 24, borderStyle: 'dashed' }}>
+          <p className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            Outils de test (à masquer avant lancement public)
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+            <button className="btn btn-secondary" disabled={debugBusy} onClick={() => handleDebugAddXp(150)}>
+              +150 XP
+            </button>
+            <button className="btn btn-secondary" disabled={debugBusy} onClick={() => handleDebugAddXp(1500)}>
+              +1500 XP
+            </button>
+            <button className="btn btn-secondary" disabled={debugBusy} onClick={() => handleDebugAddXp(15000)}>
+              +15000 XP
+            </button>
+          </div>
+          <button
+            className="btn"
+            disabled={debugBusy}
+            style={{ background: 'var(--accent)', color: '#14140F', width: '100%' }}
+            onClick={handleDebugReset}
+          >
+            Réinitialiser ma progression
+          </button>
+        </div>
+      )}
     </div>
   )
 }
