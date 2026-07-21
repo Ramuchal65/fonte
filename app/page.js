@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import LoginButton from '@/components/LoginButton'
-import PixelAvatar from '@/components/PixelAvatar'
+import AppHeader from '@/components/AppHeader'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
+import { getRoomState } from '@/lib/gamification'
 
 export default function Home() {
   const supabase = createClient()
@@ -15,6 +16,7 @@ export default function Home() {
   const [program, setProgram] = useState(null)
   const [days, setDays] = useState([])
   const [loading, setLoading] = useState(true)
+  const [xpProgress, setXpProgress] = useState(null)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null))
@@ -44,6 +46,13 @@ export default function Home() {
         return
       }
       setProfile(prof)
+
+      getRoomState(supabase, user.id)
+        .then(room => {
+          if (cancelled || !room) return
+          setXpProgress(room.xp_needed_for_next ? room.xp_into_level / room.xp_needed_for_next : 0)
+        })
+        .catch(() => { /* purement décoratif, on ignore silencieusement */ })
 
       const { data: prog } = await supabase
         .from('programs')
@@ -91,28 +100,17 @@ export default function Home() {
 
   return (
     <div className="container">
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <Link href="/profile" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <PixelAvatar avatar={{ ...DEFAULT_AVATAR, ...profile.avatar }} size={40} />
-          <span style={{ fontSize: 15, fontWeight: 600 }}>{profile.pseudo}</span>
-        </Link>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <Link href="/salle" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
-            Ma salle
-          </Link>
-          {program && (
-            <Link href="/programs" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
-              Mes programmes
-            </Link>
-          )}
-          <Link href="/history" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
-            Historique
-          </Link>
-          <Link href="/import" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
-            {program ? 'Nouveau programme' : 'Importer un programme'}
-          </Link>
-        </div>
-      </header>
+      <AppHeader
+        pseudo={profile.pseudo}
+        avatar={{ ...DEFAULT_AVATAR, ...profile.avatar }}
+        xpProgress={xpProgress}
+        navItems={[
+          { href: '/salle', label: 'Ma salle', icon: 'salle' },
+          ...(program ? [{ href: '/programs', label: 'Mes programmes', icon: 'programmes' }] : []),
+          { href: '/history', label: 'Historique', icon: 'historique' },
+          { href: '/import', label: program ? 'Nouveau programme' : 'Importer un programme', icon: 'nouveau' }
+        ]}
+      />
 
       {loading && <p className="muted">Chargement…</p>}
 
