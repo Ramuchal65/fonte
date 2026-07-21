@@ -177,7 +177,7 @@ export default function ImportPage() {
           {days.map((day, dayIdx) => (
             <div key={dayIdx} className="card" style={{ marginBottom: 16 }}>
               <h3 style={{ fontSize: 18, marginBottom: 12 }}>{day.label}</h3>
-              {day.groups.map((group, groupIdx) => (
+              {(day.groups || []).map((group, groupIdx) => (
                 <div key={groupIdx} style={{ borderTop: groupIdx > 0 ? '1px solid var(--border)' : 'none', paddingTop: groupIdx > 0 ? 12 : 0, marginTop: groupIdx > 0 ? 12 : 0 }}>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
                     <select
@@ -205,7 +205,7 @@ export default function ImportPage() {
                     </div>
                   </div>
 
-                  {group.exercises.map((ex, exIdx) => (
+                  {(group.exercises || []).map((ex, exIdx) => (
                     <div key={exIdx} style={{ display: 'flex', gap: 8, marginBottom: 8, marginLeft: group.type === 'circuit' ? 12 : 0 }}>
                       <input
                         type="text"
@@ -221,7 +221,7 @@ export default function ImportPage() {
                         onChange={e => updateExercise(dayIdx, groupIdx, exIdx, 'target_reps', e.target.value)}
                         style={{ flex: 1 }}
                       />
-                      {group.exercises.length > 1 && (
+                      {(group.exercises || []).length > 1 && (
                         <button className="btn btn-secondary" onClick={() => removeExercise(dayIdx, groupIdx, exIdx)} aria-label="Supprimer l'exercice">✕</button>
                       )}
                     </div>
