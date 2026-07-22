@@ -7,8 +7,15 @@ export default function TopNav({ title, onAbandon, abandonLabel = 'Abandonner la
 
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-      <Link href="/" className="muted" style={{ fontSize: 14, textDecoration: 'underline' }}>
-        ← Accueil
+      <Link
+        href="/"
+        className="muted"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, textDecoration: 'none' }}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M15 18l-6-6 6-6" />
+        </svg>
+        Accueil
       </Link>
       {title && <span className="muted" style={{ fontSize: 14 }}>{title}</span>}
       {onAbandon && (
@@ -28,7 +35,7 @@ export default function TopNav({ title, onAbandon, abandonLabel = 'Abandonner la
         ) : (
           <button
             className="muted"
-            style={{ background: 'none', border: 'none', fontSize: 13, textDecoration: 'underline', padding: 0 }}
+            style={{ background: 'none', border: 'none', fontSize: 13, padding: 0 }}
             onClick={() => setConfirming(true)}
           >
             {abandonLabel}

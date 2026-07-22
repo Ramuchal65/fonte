@@ -104,12 +104,6 @@ export default function Home() {
         pseudo={profile.pseudo}
         avatar={{ ...DEFAULT_AVATAR, ...profile.avatar }}
         xpProgress={xpProgress}
-        navItems={[
-          { href: '/salle', label: 'Ma salle', icon: 'salle' },
-          ...(program ? [{ href: '/programs', label: 'Mes programmes', icon: 'programmes' }] : []),
-          { href: '/history', label: 'Historique', icon: 'historique' },
-          { href: '/import', label: program ? 'Nouveau programme' : 'Importer un programme', icon: 'nouveau' }
-        ]}
       />
 
       {loading && <p className="muted">Chargement…</p>}

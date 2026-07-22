@@ -1,4 +1,5 @@
 import './globals.css'
+import AppShell from '@/components/AppShell'
 
 export const metadata = {
   title: 'Fonte — suivi de musculation',
@@ -14,7 +15,9 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="fr">
-      <body>{children}</body>
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   )
 }

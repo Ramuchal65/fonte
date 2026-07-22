@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase-browser'
 import RestTimer from '@/components/RestTimer'
 import TopNav from '@/components/TopNav'
 import CoachAvatar from '@/components/CoachAvatar'
+import SessionSummary from '@/components/SessionSummary'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
-import { addXpAfterSession } from '@/lib/gamification'
+import { finishSessionAndAwardXp } from '@/lib/gamification'
 
 // Construit la séquence linéaire d'étapes à partir des groupes de la journée.
 // Classique : exercice répété "rounds" fois d'affilée (repos après chaque série).
@@ -158,14 +159,20 @@ export default function SessionPage() {
     setPhase('exercise')
   }
 
+  const [summary, setSummary] = useState(null)
+  const [finishing, setFinishing] = useState(false)
+
   const finishSession = async () => {
+    setFinishing(true)
     await supabase.from('sessions').update({ finished_at: new Date().toISOString() }).eq('id', sessionId)
     try {
-      await addXpAfterSession(supabase, user.id, steps.length, sessionId)
+      const data = await finishSessionAndAwardXp(supabase, user.id, sessionId)
+      setSummary(data)
     } catch (e) {
-      console.error('XP non comptabilisée :', e)
+      console.error('Bilan de séance indisponible :', e)
+      router.push('/salle') // on ne bloque pas l'utilisateur si le bilan échoue
     }
-    router.push('/salle')
+    setFinishing(false)
   }
 
   const abandonSession = async () => {
@@ -174,6 +181,10 @@ export default function SessionPage() {
   }
 
   if (loading) return <div className="container"><TopNav /><p className="muted">Chargement…</p></div>
+
+  if (summary) {
+    return <SessionSummary summary={summary} onContinue={() => router.push('/salle')} />
+  }
 
   if (steps.length === 0) {
     return (
@@ -249,8 +260,8 @@ export default function SessionPage() {
       {phase === 'done' && (
         <div className="card" style={{ textAlign: 'center' }}>
           <h2 style={{ fontSize: 22, marginBottom: 12 }}>Séance terminée</h2>
-          <button className="btn btn-primary btn-block" onClick={finishSession}>
-            Retour à l'accueil
+          <button className="btn btn-primary btn-block" onClick={finishSession} disabled={finishing}>
+            {finishing ? 'Calcul du bilan…' : 'Voir mon bilan'}
           </button>
         </div>
       )}

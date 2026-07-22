@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import TopNav from '@/components/TopNav'
@@ -63,7 +64,12 @@ export default function ProgramsPage() {
   return (
     <div className="container">
       <TopNav />
-      <h1 style={{ fontSize: 24, marginBottom: 4 }}>Mes programmes</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
+        <h1 style={{ fontSize: 24 }}>Mes programmes</h1>
+        <Link href="/import" className="btn btn-secondary" style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}>
+          + Nouveau
+        </Link>
+      </div>
       <p className="muted" style={{ marginBottom: 20 }}>
         Un seul programme actif à la fois. Les anciens restent ici, ton historique de perfs est conservé.
       </p>
@@ -96,7 +102,7 @@ export default function ProgramsPage() {
                 ) : (
                   <button
                     className="muted"
-                    style={{ background: 'none', border: 'none', fontSize: 13, textDecoration: 'underline' }}
+                    style={{ background: 'none', border: 'none', fontSize: 13 }}
                     onClick={() => setConfirmingDelete(p.id)}
                   >
                     Supprimer
