@@ -91,10 +91,13 @@ export default function HistoryPage() {
         <>
           <button
             className="muted"
-            style={{ background: 'none', border: 'none', fontSize: 13, textDecoration: 'underline', marginBottom: 16, padding: 0 }}
+            style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, marginBottom: 16, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
             onClick={() => { setSelected(null); setEntries([]) }}
           >
-            ← Tous les exercices
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Tous les exercices
           </button>
 
           <h2 style={{ fontSize: 20, marginBottom: 12 }}>{selected}</h2>
