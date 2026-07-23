@@ -91,6 +91,9 @@ export default function ProgramsPage() {
                     Rendre actif
                   </button>
                 )}
+                <Link href={`/programs/${p.id}/edit`} className="btn btn-secondary">
+                  Modifier
+                </Link>
                 {confirmingDelete === p.id ? (
                   <button
                     className="btn"
