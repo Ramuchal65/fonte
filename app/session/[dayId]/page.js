@@ -57,6 +57,7 @@ export default function SessionPage() {
   const [loading, setLoading] = useState(true)
 
   const [stepIdx, setStepIdx] = useState(0)
+  const [showDemo, setShowDemo] = useState(false)
   const [phase, setPhase] = useState('exercise') // 'exercise' | 'resting' | 'done'
   const [elapsed, setElapsed] = useState(0)
   const [inputs, setInputs] = useState({ reps: '', weight: '' })
@@ -147,6 +148,10 @@ export default function SessionPage() {
     const match = String(currentStep.targetReps ?? '').match(/\d+/)
     setInputs({ reps: match ? match[0] : '', weight: '' })
   }, [stepIdx, steps.length])
+
+  useEffect(() => {
+    setShowDemo(false)
+  }, [stepIdx])
 
   const previousForCurrent = useMemo(() => {
     if (!currentStep) return null
@@ -258,31 +263,37 @@ export default function SessionPage() {
 
       {phase === 'exercise' && currentStep && (
         <div className="card">
-          {exerciseGifs[currentStep.exerciseName] ? (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'stretch' }}>
-              <div style={{ flex: '1 1 60%', minWidth: 0 }}>
-                <p className="muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-                  Exécution
-                </p>
-                <img
-                  src={`/exercise-gifs/${exerciseGifs[currentStep.exerciseName]}`}
-                  alt={currentStep.exerciseName}
-                  style={{ width: '100%', display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
-                />
+          {(() => {
+            const gifFile = exerciseGifs[currentStep.exerciseName]
+            if (gifFile && showDemo) {
+              return (
+                <button
+                  onClick={() => setShowDemo(false)}
+                  className="exo-demo-toggle"
+                  aria-label="Revenir à l'entraîneur"
+                >
+                  <img
+                    src={`/exercise-gifs/${gifFile}`}
+                    alt={currentStep.exerciseName}
+                    style={{ width: '100%', maxWidth: 200, display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
+                  />
+                  <span className="muted" style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
+                    ◀ Revenir à l'entraîneur
+                  </span>
+                </button>
+              )
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {gifFile && (
+                  <button onClick={() => setShowDemo(true)} className="speech-bubble">
+                    👀 Voir comment faire
+                  </button>
+                )}
+                <CoachAvatar avatar={profileAvatar} mode="exercise" size={110} />
               </div>
-              <div style={{
-                flex: '0 0 84px', display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center',
-                borderLeft: '1px solid var(--border)', paddingLeft: 12
-              }}>
-                <CoachAvatar avatar={profileAvatar} mode="exercise" size={72} />
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
-              <CoachAvatar avatar={profileAvatar} mode="exercise" size={110} />
-            </div>
-          )}
+            )
+          })()}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
             <span className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {currentStep.groupType === 'circuit' ? `Circuit · tour ${currentStep.round}/${currentStep.totalRounds}` : `Série ${currentStep.round}/${currentStep.totalRounds}`}
