@@ -111,7 +111,8 @@ export default function Home() {
       {!loading && !program && (
         <div className="card">
           <p style={{ marginBottom: 16 }}>Aucun programme actif pour l'instant.</p>
-          <Link href="/import" className="btn btn-primary btn-block">Importer mon premier programme</Link>
+          <Link href="/import" className="btn btn-primary btn-block" style={{ marginBottom: 8 }}>Importer mon premier programme</Link>
+          <Link href="/programs/new" className="btn btn-secondary btn-block">Créer un programme sans import</Link>
         </div>
       )}
 
