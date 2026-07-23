@@ -52,6 +52,7 @@ export default function SessionPage() {
   const [dayLabel, setDayLabel] = useState('')
   const [steps, setSteps] = useState([])
   const [previousPerf, setPreviousPerf] = useState({})
+  const [exerciseGifs, setExerciseGifs] = useState({})
   const [sessionId, setSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -97,6 +98,16 @@ export default function SessionPage() {
       setSessionId(sess.id)
 
       const uniqueNames = [...new Set(builtSteps.map(s => s.exerciseName))]
+
+      const { data: gifRows } = await supabase
+        .from('exercise_catalog')
+        .select('canonical_name, gif_filename')
+        .in('canonical_name', uniqueNames)
+        .not('gif_filename', 'is', null)
+      const gifMap = {}
+      for (const row of gifRows ?? []) gifMap[row.canonical_name] = row.gif_filename
+      setExerciseGifs(gifMap)
+
       const perfs = {}
       for (const name of uniqueNames) {
         const { data: sets } = await supabase
@@ -247,9 +258,27 @@ export default function SessionPage() {
 
       {phase === 'exercise' && currentStep && (
         <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
-            <CoachAvatar avatar={profileAvatar} mode="exercise" size={110} />
-          </div>
+          {exerciseGifs[currentStep.exerciseName] ? (
+            <div style={{ position: 'relative', width: '100%', maxWidth: 220, margin: '0 auto 8px' }}>
+              <img
+                src={`/exercise-gifs/${exerciseGifs[currentStep.exerciseName]}`}
+                alt={currentStep.exerciseName}
+                style={{ width: '100%', display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
+              />
+              <div style={{
+                position: 'absolute', bottom: -10, right: -10,
+                width: 52, height: 52, borderRadius: '50%',
+                background: 'var(--surface)', border: '2px solid var(--bg)',
+                display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden'
+              }}>
+                <CoachAvatar avatar={profileAvatar} mode="exercise" size={62} />
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+              <CoachAvatar avatar={profileAvatar} mode="exercise" size={110} />
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
             <span className="muted" style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               {currentStep.groupType === 'circuit' ? `Circuit · tour ${currentStep.round}/${currentStep.totalRounds}` : `Série ${currentStep.round}/${currentStep.totalRounds}`}
