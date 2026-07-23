@@ -146,7 +146,7 @@ export default function SessionPage() {
     if (!currentStep || currentStep.targetType === 'time') return
     const match = String(currentStep.targetReps ?? '').match(/\d+/)
     setInputs({ reps: match ? match[0] : '', weight: '' })
-  }, [stepIdx])
+  }, [stepIdx, steps.length])
 
   const previousForCurrent = useMemo(() => {
     if (!currentStep) return null
@@ -259,19 +259,23 @@ export default function SessionPage() {
       {phase === 'exercise' && currentStep && (
         <div className="card">
           {exerciseGifs[currentStep.exerciseName] ? (
-            <div style={{ position: 'relative', width: '100%', maxWidth: 220, margin: '0 auto 8px' }}>
-              <img
-                src={`/exercise-gifs/${exerciseGifs[currentStep.exerciseName]}`}
-                alt={currentStep.exerciseName}
-                style={{ width: '100%', display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
-              />
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'stretch' }}>
+              <div style={{ flex: '1 1 60%', minWidth: 0 }}>
+                <p className="muted" style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                  Exécution
+                </p>
+                <img
+                  src={`/exercise-gifs/${exerciseGifs[currentStep.exerciseName]}`}
+                  alt={currentStep.exerciseName}
+                  style={{ width: '100%', display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
+                />
+              </div>
               <div style={{
-                position: 'absolute', bottom: -10, right: -10,
-                width: 52, height: 52, borderRadius: '50%',
-                background: 'var(--surface)', border: '2px solid var(--bg)',
-                display: 'flex', alignItems: 'flex-end', justifyContent: 'center', overflow: 'hidden'
+                flex: '0 0 84px', display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center',
+                borderLeft: '1px solid var(--border)', paddingLeft: 12
               }}>
-                <CoachAvatar avatar={profileAvatar} mode="exercise" size={62} />
+                <CoachAvatar avatar={profileAvatar} mode="exercise" size={72} />
               </div>
             </div>
           ) : (
