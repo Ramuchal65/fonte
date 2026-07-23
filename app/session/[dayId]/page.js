@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import RestTimer from '@/components/RestTimer'
+import ExerciseTimer from '@/components/ExerciseTimer'
 import TopNav from '@/components/TopNav'
 import CoachAvatar from '@/components/CoachAvatar'
 import SessionSummary from '@/components/SessionSummary'
@@ -24,7 +25,9 @@ function buildSteps(groups) {
           const isLastInRound = exIdx === arr.length - 1
           steps.push({
             exerciseName: ex.name,
+            targetType: ex.target_type || 'reps',
             targetReps: ex.target_reps,
+            targetSeconds: ex.target_seconds,
             targetWeightKg: ex.target_weight_kg,
             groupType: group.type,
             round,
@@ -124,12 +127,26 @@ export default function SessionPage() {
   }, [stepIdx, phase])
 
   const currentStep = steps[stepIdx]
+  const nextStep = steps[stepIdx + 1]
 
   const previousForCurrent = useMemo(() => {
     if (!currentStep) return null
     const bySetNumber = previousPerf[currentStep.exerciseName] || {}
     return bySetNumber[currentStep.round] || null
   }, [currentStep, previousPerf])
+
+  const advanceAfterLogging = () => {
+    const isLastStep = stepIdx === steps.length - 1
+    if (isLastStep) {
+      setPhase('done')
+      return
+    }
+    if (currentStep.restAfter) {
+      setPhase('resting')
+    } else {
+      setStepIdx(i => i + 1)
+    }
+  }
 
   const finishStep = async () => {
     if (!inputs.reps || !inputs.weight) return
@@ -141,17 +158,17 @@ export default function SessionPage() {
       weight_kg: Number(inputs.weight)
     })
     setInputs({ reps: '', weight: '' })
+    advanceAfterLogging()
+  }
 
-    const isLastStep = stepIdx === steps.length - 1
-    if (isLastStep) {
-      setPhase('done')
-      return
-    }
-    if (currentStep.restAfter) {
-      setPhase('resting')
-    } else {
-      setStepIdx(i => i + 1)
-    }
+  const finishTimedStep = async (actualSeconds) => {
+    await supabase.from('logged_sets').insert({
+      session_id: sessionId,
+      exercise_name: currentStep.exerciseName,
+      set_number: currentStep.round,
+      duration_seconds: actualSeconds
+    })
+    advanceAfterLogging()
   }
 
   const afterRest = () => {
@@ -212,6 +229,11 @@ export default function SessionPage() {
             <CoachAvatar avatar={profileAvatar} mode="resting" size={110} />
           </div>
           <RestTimer seconds={currentStep.restSeconds} resetKey={stepIdx} onDone={afterRest} />
+          {nextStep && (
+            <p className="muted" style={{ textAlign: 'center', fontSize: 13, marginTop: 12 }}>
+              Ensuite : <strong style={{ color: 'var(--text)' }}>{nextStep.exerciseName}</strong>
+            </p>
+          )}
         </>
       )}
 
@@ -229,31 +251,53 @@ export default function SessionPage() {
 
           <h2 style={{ fontSize: 24, marginBottom: 8 }}>{currentStep.exerciseName}</h2>
           <p className="muted" style={{ fontSize: 14, marginBottom: 16 }}>
-            Cible : {currentStep.targetReps} reps
-            {currentStep.targetWeightKg ? ` @ ${currentStep.targetWeightKg} kg` : ''}
-            {previousForCurrent ? ` · précédent : ${previousForCurrent.weight_kg} kg × ${previousForCurrent.reps}` : ''}
+            {currentStep.targetType === 'time' ? (
+              `Cible : ${Math.floor(currentStep.targetSeconds / 60) > 0 ? `${Math.floor(currentStep.targetSeconds / 60)} min ` : ''}${currentStep.targetSeconds % 60 ? `${currentStep.targetSeconds % 60} s` : ''}`.trim()
+            ) : (
+              <>
+                Cible : {currentStep.targetReps} reps
+                {currentStep.targetWeightKg ? ` @ ${currentStep.targetWeightKg} kg` : ''}
+                {previousForCurrent ? ` · précédent : ${previousForCurrent.weight_kg} kg × ${previousForCurrent.reps}` : ''}
+              </>
+            )}
           </p>
 
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-            <input
-              type="number"
-              inputMode="decimal"
-              placeholder={previousForCurrent ? `${previousForCurrent.weight_kg} kg` : 'kg'}
-              value={inputs.weight}
-              onChange={e => setInputs(prev => ({ ...prev, weight: e.target.value }))}
+          {currentStep.targetType === 'time' ? (
+            <ExerciseTimer
+              targetSeconds={currentStep.targetSeconds}
+              resetKey={stepIdx}
+              onComplete={finishTimedStep}
             />
-            <input
-              type="number"
-              inputMode="numeric"
-              placeholder={previousForCurrent ? `${previousForCurrent.reps} reps` : 'reps'}
-              value={inputs.reps}
-              onChange={e => setInputs(prev => ({ ...prev, reps: e.target.value }))}
-            />
-          </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  placeholder={previousForCurrent ? `${previousForCurrent.weight_kg} kg` : 'kg'}
+                  value={inputs.weight}
+                  onChange={e => setInputs(prev => ({ ...prev, weight: e.target.value }))}
+                />
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  placeholder={previousForCurrent ? `${previousForCurrent.reps} reps` : 'reps'}
+                  value={inputs.reps}
+                  onChange={e => setInputs(prev => ({ ...prev, reps: e.target.value }))}
+                />
+              </div>
 
-          <button className="btn btn-primary btn-block" onClick={finishStep}>
-            Exercice terminé
-          </button>
+              <button className="btn btn-primary btn-block" onClick={finishStep}>
+                Exercice terminé
+              </button>
+            </>
+          )}
+
+          {nextStep && (
+            <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 12 }}>
+              Ensuite : {nextStep.exerciseName}
+            </p>
+          )}
         </div>
       )}
 

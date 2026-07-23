@@ -23,6 +23,13 @@ Règles :
   aucun exercice identifiable ne doit simplement pas apparaître dans la réponse.
 - Ne déduis pas d'exercices absents du texte. Si une info manque, mets une valeur par défaut raisonnable.
 
+Objectif en temps plutôt qu'en répétitions (gainage, planche, cardio, holds isométriques...) :
+Si l'exercice est exprimé en durée ("30 secondes", "1 min", "tenir 45s"...) plutôt qu'en nombre de
+répétitions, mets target_type à "time" et target_seconds au nombre de secondes correspondant
+(convertis les minutes en secondes). Laisse target_reps à une chaîne vide dans ce cas.
+Sinon, target_type reste "reps", target_reps contient les répétitions comme d'habitude, et
+target_seconds reste null.
+
 Standardisation des noms d'exercices (important, pour éviter les doublons dans l'historique) :
 Voici la liste des noms canoniques déjà connus de l'application :
 ${catalogNames.map(n => `- ${n}`).join('\n')}
@@ -46,7 +53,7 @@ Réponds UNIQUEMENT avec du JSON valide, sans markdown, sans commentaire, selon 
           "rounds": number,
           "rest_seconds": number,
           "exercises": [
-            { "name": "string", "canonical_name": "string|null", "target_reps": "string", "target_weight_kg": number|null }
+            { "name": "string", "canonical_name": "string|null", "target_type": "reps" | "time", "target_reps": "string", "target_seconds": number|null, "target_weight_kg": number|null }
           ]
         }
       ]
@@ -103,10 +110,12 @@ export async function POST(request) {
                           properties: {
                             name: { type: 'STRING' },
                             canonical_name: { type: 'STRING', nullable: true },
+                            target_type: { type: 'STRING', enum: ['reps', 'time'] },
                             target_reps: { type: 'STRING' },
+                            target_seconds: { type: 'INTEGER', nullable: true },
                             target_weight_kg: { type: 'NUMBER', nullable: true }
                           },
-                          required: ['name', 'target_reps']
+                          required: ['name', 'target_type']
                         }
                       }
                     },
@@ -160,11 +169,16 @@ export async function POST(request) {
         type: group.type === 'circuit' ? 'circuit' : 'classique',
         rounds: Number(group.rounds) || 3,
         rest_seconds: Number(group.rest_seconds) || (group.type === 'circuit' ? 60 : 90),
-        exercises: (group.exercises || []).map(ex => ({
-          name: (ex.canonical_name && catalogSet.has(ex.canonical_name)) ? ex.canonical_name : (ex.name || 'Exercice'),
-          target_reps: String(ex.target_reps ?? '8-12'),
-          target_weight_kg: ex.target_weight_kg != null ? Number(ex.target_weight_kg) : null
-        }))
+        exercises: (group.exercises || []).map(ex => {
+          const isTime = ex.target_type === 'time' && ex.target_seconds != null
+          return {
+            name: (ex.canonical_name && catalogSet.has(ex.canonical_name)) ? ex.canonical_name : (ex.name || 'Exercice'),
+            target_type: isTime ? 'time' : 'reps',
+            target_reps: isTime ? '' : String(ex.target_reps ?? '8-12'),
+            target_seconds: isTime ? Number(ex.target_seconds) : null,
+            target_weight_kg: ex.target_weight_kg != null ? Number(ex.target_weight_kg) : null
+          }
+        })
       })).filter(g => g.exercises.length > 0)
     })).filter(d => d.groups.length > 0)
   }

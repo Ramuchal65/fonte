@@ -51,7 +51,7 @@ export default function ImportPage() {
   const addExerciseToGroup = (dayIdx, groupIdx) => {
     setDays(prev => {
       const next = structuredClone(prev)
-      next[dayIdx].groups[groupIdx].exercises.push({ name: '', target_reps: '8-12', target_weight_kg: null })
+      next[dayIdx].groups[groupIdx].exercises.push({ name: '', target_type: 'reps', target_reps: '8-12', target_seconds: null, target_weight_kg: null })
       return next
     })
   }
@@ -122,7 +122,9 @@ export default function ImportPage() {
           group_id: groupRow.id,
           position: idx,
           name: ex.name,
-          target_reps: String(ex.target_reps),
+          target_type: ex.target_type || 'reps',
+          target_reps: String(ex.target_reps ?? ''),
+          target_seconds: ex.target_seconds ?? null,
           target_weight_kg: ex.target_weight_kg
         }))
 
@@ -214,13 +216,32 @@ export default function ImportPage() {
                         onChange={e => updateExercise(dayIdx, groupIdx, exIdx, 'name', e.target.value)}
                         style={{ flex: 2 }}
                       />
-                      <input
-                        type="text"
-                        value={ex.target_reps}
-                        placeholder="reps"
-                        onChange={e => updateExercise(dayIdx, groupIdx, exIdx, 'target_reps', e.target.value)}
-                        style={{ flex: 1 }}
-                      />
+                      <select
+                        value={ex.target_type || 'reps'}
+                        onChange={e => updateExercise(dayIdx, groupIdx, exIdx, 'target_type', e.target.value)}
+                        style={{ flex: '0 0 auto', width: 'auto' }}
+                      >
+                        <option value="reps">Reps</option>
+                        <option value="time">Temps</option>
+                      </select>
+                      {ex.target_type === 'time' ? (
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          value={ex.target_seconds ?? ''}
+                          placeholder="secondes"
+                          onChange={e => updateExercise(dayIdx, groupIdx, exIdx, 'target_seconds', Number(e.target.value))}
+                          style={{ flex: 1 }}
+                        />
+                      ) : (
+                        <input
+                          type="text"
+                          value={ex.target_reps}
+                          placeholder="reps"
+                          onChange={e => updateExercise(dayIdx, groupIdx, exIdx, 'target_reps', e.target.value)}
+                          style={{ flex: 1 }}
+                        />
+                      )}
                       {(group.exercises || []).length > 1 && (
                         <button className="btn btn-secondary" onClick={() => removeExercise(dayIdx, groupIdx, exIdx)} aria-label="Supprimer l'exercice">✕</button>
                       )}
