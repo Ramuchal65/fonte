@@ -66,9 +66,14 @@ export default function ProgramsPage() {
       <TopNav />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 4 }}>
         <h1 style={{ fontSize: 24 }}>Mes programmes</h1>
-        <Link href="/import" className="btn btn-secondary" style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}>
-          + Nouveau
-        </Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link href="/programs/new" className="btn btn-secondary" style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}>
+            + Créer
+          </Link>
+          <Link href="/import" className="btn btn-secondary" style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}>
+            + Importer
+          </Link>
+        </div>
       </div>
       <p className="muted" style={{ marginBottom: 20 }}>
         Un seul programme actif à la fois. Les anciens restent ici, ton historique de perfs est conservé.

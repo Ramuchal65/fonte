@@ -1,19 +1,21 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import TopNav from '@/components/TopNav'
 import ExercisePicker from '@/components/ExercisePicker'
 
-export default function EditProgramPage() {
+const emptyExercise = () => ({ name: '', target_type: 'reps', target_reps: '8-12', target_seconds: null, target_weight_kg: null })
+const emptyGroup = () => ({ type: 'classique', rounds: 3, rest_seconds: 90, exercises: [emptyExercise()] })
+
+export default function NewProgramPage() {
   const supabase = createClient()
   const router = useRouter()
-  const { id } = useParams()
 
   const [programName, setProgramName] = useState('')
-  const [days, setDays] = useState(null)
+  const [days, setDays] = useState([{ label: 'Jour 1', groups: [emptyGroup()] }])
   const [catalog, setCatalog] = useState([])
-  const [status, setStatus] = useState('loading') // 'loading' | 'ready' | 'saving' | 'error'
+  const [status, setStatus] = useState('idle') // 'idle' | 'saving' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
@@ -24,133 +26,83 @@ export default function EditProgramPage() {
       .then(({ data }) => setCatalog(data ?? []))
   }, [])
 
-  useEffect(() => {
-    load()
-  }, [id])
+  const addDay = () => setDays(prev => [...prev, { label: `Jour ${prev.length + 1}`, groups: [emptyGroup()] }])
+  const removeDay = (dayIdx) => setDays(prev => prev.filter((_, i) => i !== dayIdx))
+  const updateDayLabel = (dayIdx, value) => setDays(prev => {
+    const next = structuredClone(prev)
+    next[dayIdx].label = value
+    return next
+  })
 
-  const load = async () => {
-    setStatus('loading')
-    const { data: program, error: progErr } = await supabase
-      .from('programs')
-      .select('id, name')
-      .eq('id', id)
-      .single()
+  const addGroup = (dayIdx) => setDays(prev => {
+    const next = structuredClone(prev)
+    next[dayIdx].groups.push(emptyGroup())
+    return next
+  })
+  const removeGroup = (dayIdx, groupIdx) => setDays(prev => {
+    const next = structuredClone(prev)
+    next[dayIdx].groups.splice(groupIdx, 1)
+    return next
+  })
+  const updateGroup = (dayIdx, groupIdx, field, value) => setDays(prev => {
+    const next = structuredClone(prev)
+    next[dayIdx].groups[groupIdx][field] = value
+    return next
+  })
 
-    if (progErr || !program) { setErrorMsg('Programme introuvable.'); setStatus('error'); return }
-    setProgramName(program.name)
+  const addExercise = (dayIdx, groupIdx) => setDays(prev => {
+    const next = structuredClone(prev)
+    next[dayIdx].groups[groupIdx].exercises.push(emptyExercise())
+    return next
+  })
+  const removeExercise = (dayIdx, groupIdx, exIdx) => setDays(prev => {
+    const next = structuredClone(prev)
+    next[dayIdx].groups[groupIdx].exercises.splice(exIdx, 1)
+    return next
+  })
+  const updateExercise = (dayIdx, groupIdx, exIdx, field, value) => setDays(prev => {
+    const next = structuredClone(prev)
+    next[dayIdx].groups[groupIdx].exercises[exIdx][field] = value
+    return next
+  })
 
-    const { data: dayRows, error: dayErr } = await supabase
-      .from('program_days')
-      .select(`
-        id, label, position,
-        exercise_groups (
-          id, type, rounds, rest_seconds, position,
-          group_exercises ( id, name, target_type, target_reps, target_seconds, target_weight_kg, position )
-        )
-      `)
-      .eq('program_id', id)
-      .order('position')
+  const isValid = days.length > 0 && days.every(d =>
+    d.label.trim() && d.groups.length > 0 && d.groups.every(g => g.exercises.every(ex => ex.name.trim()))
+  )
 
-    if (dayErr) { setErrorMsg(dayErr.message); setStatus('error'); return }
-
-    const shaped = (dayRows ?? []).map(d => ({
-      id: d.id,
-      label: d.label,
-      groups: [...(d.exercise_groups ?? [])]
-        .sort((a, b) => a.position - b.position)
-        .map(g => ({
-          type: g.type,
-          rounds: g.rounds,
-          rest_seconds: g.rest_seconds,
-          exercises: [...(g.group_exercises ?? [])]
-            .sort((a, b) => a.position - b.position)
-            .map(ex => ({
-              name: ex.name,
-              target_type: ex.target_type || 'reps',
-              target_reps: ex.target_reps,
-              target_seconds: ex.target_seconds,
-              target_weight_kg: ex.target_weight_kg
-            }))
-        }))
-    }))
-
-    setDays(shaped)
-    setStatus('ready')
-  }
-
-  const updateGroup = (dayIdx, groupIdx, field, value) => {
-    setDays(prev => {
-      const next = structuredClone(prev)
-      next[dayIdx].groups[groupIdx][field] = value
-      return next
-    })
-  }
-
-  const updateExercise = (dayIdx, groupIdx, exIdx, field, value) => {
-    setDays(prev => {
-      const next = structuredClone(prev)
-      next[dayIdx].groups[groupIdx].exercises[exIdx][field] = value
-      return next
-    })
-  }
-
-  const addExerciseToGroup = (dayIdx, groupIdx) => {
-    setDays(prev => {
-      const next = structuredClone(prev)
-      next[dayIdx].groups[groupIdx].exercises.push({ name: '', target_type: 'reps', target_reps: '8-12', target_seconds: null, target_weight_kg: null })
-      return next
-    })
-  }
-
-  const removeExercise = (dayIdx, groupIdx, exIdx) => {
-    setDays(prev => {
-      const next = structuredClone(prev)
-      next[dayIdx].groups[groupIdx].exercises.splice(exIdx, 1)
-      return next
-    })
-  }
-
-  const removeGroup = (dayIdx, groupIdx) => {
-    setDays(prev => {
-      const next = structuredClone(prev)
-      next[dayIdx].groups.splice(groupIdx, 1)
-      return next
-    })
-  }
-
-  const addGroup = (dayIdx) => {
-    setDays(prev => {
-      const next = structuredClone(prev)
-      next[dayIdx].groups.push({
-        type: 'classique', rounds: 3, rest_seconds: 90,
-        exercises: [{ name: '', target_type: 'reps', target_reps: '8-12', target_seconds: null, target_weight_kg: null }]
-      })
-      return next
-    })
-  }
-
-  // Les jours eux-mêmes (leur id) sont préservés : c'est ce qui permet de
-  // comparer une séance à "la dernière fois sur ce même jour" dans le bilan.
-  // Seuls les groupes/exercices sont remplacés à chaque sauvegarde.
   const save = async () => {
     setStatus('saving')
+    const { data: { user } } = await supabase.auth.getUser()
 
-    const { error: nameErr } = await supabase
+    const { error: archiveErr } = await supabase
       .from('programs')
-      .update({ name: programName || 'Programme sans nom' })
-      .eq('id', id)
-    if (nameErr) { setErrorMsg(nameErr.message); setStatus('error'); return }
+      .update({ archived_at: new Date().toISOString() })
+      .eq('user_id', user.id)
+      .is('archived_at', null)
+    if (archiveErr) { setErrorMsg(archiveErr.message); setStatus('error'); return }
 
-    for (const day of days) {
-      const { error: delErr } = await supabase.from('exercise_groups').delete().eq('program_day_id', day.id)
-      if (delErr) { setErrorMsg(delErr.message); setStatus('error'); return }
+    const { data: program, error: progErr } = await supabase
+      .from('programs')
+      .insert({ user_id: user.id, name: programName || 'Programme sans nom', source_text: null })
+      .select()
+      .single()
+    if (progErr) { setErrorMsg(progErr.message); setStatus('error'); return }
+
+    for (let i = 0; i < days.length; i++) {
+      const day = days[i]
+      const { data: dayRow, error: dayErr } = await supabase
+        .from('program_days')
+        .insert({ program_id: program.id, label: day.label, position: i })
+        .select()
+        .single()
+      if (dayErr) { setErrorMsg(dayErr.message); setStatus('error'); return }
 
       for (let g = 0; g < day.groups.length; g++) {
         const group = day.groups[g]
         const { data: groupRow, error: groupErr } = await supabase
           .from('exercise_groups')
           .insert({
-            program_day_id: day.id,
+            program_day_id: dayRow.id,
             position: g,
             type: group.type,
             rounds: group.rounds,
@@ -158,7 +110,6 @@ export default function EditProgramPage() {
           })
           .select()
           .single()
-
         if (groupErr) { setErrorMsg(groupErr.message); setStatus('error'); return }
 
         const exercisesPayload = group.exercises.map((ex, idx) => ({
@@ -170,36 +121,25 @@ export default function EditProgramPage() {
           target_seconds: ex.target_seconds ?? null,
           target_weight_kg: ex.target_weight_kg
         }))
-
         const { error: exErr } = await supabase.from('group_exercises').insert(exercisesPayload)
         if (exErr) { setErrorMsg(exErr.message); setStatus('error'); return }
       }
     }
 
-    router.push('/programs')
-  }
-
-  if (status === 'loading') return <div className="container"><TopNav /><p className="muted">Chargement…</p></div>
-
-  if (status === 'error' && !days) {
-    return (
-      <div className="container">
-        <TopNav />
-        <p style={{ color: 'var(--accent)' }}>{errorMsg}</p>
-      </div>
-    )
+    router.push('/')
   }
 
   return (
     <div className="container">
       <TopNav />
-      <h1 style={{ fontSize: 24, marginBottom: 16 }}>Modifier le programme</h1>
+      <h1 style={{ fontSize: 24, marginBottom: 16 }}>Créer un programme</h1>
 
       <label className="muted" style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>
         Nom du programme
       </label>
       <input
         type="text"
+        placeholder="ex : Prise de masse été 2026"
         value={programName}
         onChange={e => setProgramName(e.target.value)}
         style={{ marginBottom: 20 }}
@@ -210,8 +150,19 @@ export default function EditProgramPage() {
       )}
 
       {days.map((day, dayIdx) => (
-        <div key={day.id} className="card" style={{ marginBottom: 16, overflow: 'visible' }}>
-          <h3 style={{ fontSize: 18, marginBottom: 12 }}>{day.label}</h3>
+        <div key={dayIdx} className="card" style={{ marginBottom: 16, overflow: 'visible' }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+            <input
+              type="text"
+              value={day.label}
+              placeholder="Nom du jour"
+              onChange={e => updateDayLabel(dayIdx, e.target.value)}
+              style={{ flex: 1, fontFamily: 'var(--font-display)', fontWeight: 600 }}
+            />
+            {days.length > 1 && (
+              <button className="btn btn-secondary" onClick={() => removeDay(dayIdx)} aria-label="Supprimer le jour">✕</button>
+            )}
+          </div>
 
           {day.groups.map((group, groupIdx) => (
             <div key={groupIdx} style={{ borderTop: groupIdx > 0 ? '1px solid var(--border)' : 'none', paddingTop: groupIdx > 0 ? 12 : 0, marginTop: groupIdx > 0 ? 12 : 0 }}>
@@ -280,21 +231,19 @@ export default function EditProgramPage() {
                 </div>
               ))}
 
-              {group.type === 'circuit' && (
-                <button
-                  className="btn btn-secondary"
-                  style={{ fontSize: 13, padding: '8px 12px', minHeight: 'auto' }}
-                  onClick={() => addExerciseToGroup(dayIdx, groupIdx)}
-                >
-                  + Exercice dans ce circuit
-                </button>
-              )}
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: 13, padding: '8px 12px', minHeight: 'auto' }}
+                onClick={() => addExercise(dayIdx, groupIdx)}
+              >
+                + Exercice
+              </button>
             </div>
           ))}
 
           <button
             className="btn btn-secondary"
-            style={{ fontSize: 13, padding: '8px 12px', minHeight: 'auto', marginTop: day.groups.length > 0 ? 12 : 0 }}
+            style={{ fontSize: 13, padding: '8px 12px', minHeight: 'auto', marginTop: 12 }}
             onClick={() => addGroup(dayIdx)}
           >
             + Groupe d'exercices
@@ -302,14 +251,22 @@ export default function EditProgramPage() {
         </div>
       ))}
 
+      <button className="btn btn-secondary btn-block" style={{ marginBottom: 20 }} onClick={addDay}>
+        + Ajouter un jour
+      </button>
+
       <button
         className="btn btn-primary btn-block"
-        style={{ marginTop: 8 }}
-        disabled={status === 'saving'}
+        disabled={status === 'saving' || !isValid}
         onClick={save}
       >
-        {status === 'saving' ? 'Enregistrement…' : 'Enregistrer les modifications'}
+        {status === 'saving' ? 'Enregistrement…' : 'Créer le programme'}
       </button>
+      {!isValid && (
+        <p className="muted" style={{ fontSize: 12, textAlign: 'center', marginTop: 8 }}>
+          Chaque jour doit avoir un nom et chaque exercice un nom.
+        </p>
+      )}
     </div>
   )
 }

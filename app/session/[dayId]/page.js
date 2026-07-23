@@ -129,6 +129,14 @@ export default function SessionPage() {
   const currentStep = steps[stepIdx]
   const nextStep = steps[stepIdx + 1]
 
+  // Pré-remplit les répétitions avec le minimum de l'objectif ("8-12" -> 8,
+  // "12" -> 12, "max"/"amrap" -> rien à préremplir).
+  useEffect(() => {
+    if (!currentStep || currentStep.targetType === 'time') return
+    const match = String(currentStep.targetReps ?? '').match(/\d+/)
+    setInputs({ reps: match ? match[0] : '', weight: '' })
+  }, [stepIdx])
+
   const previousForCurrent = useMemo(() => {
     if (!currentStep) return null
     const bySetNumber = previousPerf[currentStep.exerciseName] || {}
@@ -149,13 +157,13 @@ export default function SessionPage() {
   }
 
   const finishStep = async () => {
-    if (!inputs.reps || !inputs.weight) return
+    if (!inputs.reps) return
     await supabase.from('logged_sets').insert({
       session_id: sessionId,
       exercise_name: currentStep.exerciseName,
       set_number: currentStep.round,
       reps: Number(inputs.reps),
-      weight_kg: Number(inputs.weight)
+      weight_kg: inputs.weight ? Number(inputs.weight) : 0
     })
     setInputs({ reps: '', weight: '' })
     advanceAfterLogging()
