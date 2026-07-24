@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import TopNav from '@/components/TopNav'
 import ExercisePicker from '@/components/ExercisePicker'
+import { recordProgramEdit } from '@/lib/gamification'
 
 export default function EditProgramPage() {
   const supabase = createClient()
@@ -134,6 +135,7 @@ export default function EditProgramPage() {
   // Seuls les groupes/exercices sont remplacés à chaque sauvegarde.
   const save = async () => {
     setStatus('saving')
+    const { data: { user } } = await supabase.auth.getUser()
 
     const { error: nameErr } = await supabase
       .from('programs')
@@ -176,6 +178,7 @@ export default function EditProgramPage() {
       }
     }
 
+    await recordProgramEdit(supabase, user.id)
     router.push('/programs')
   }
 

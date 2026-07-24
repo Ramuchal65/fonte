@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase-browser'
 import AvatarBuilder from '@/components/AvatarBuilder'
 import TopNav from '@/components/TopNav'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
+import { recordAvatarSaved } from '@/lib/gamification'
 
 export default function ProfilePage() {
   const supabase = createClient()
@@ -43,6 +44,7 @@ export default function ProfilePage() {
       return
     }
     setSaved(true)
+    await recordAvatarSaved(supabase, user.id, avatar.outfit)
   }
 
   if (profile === null) return <div className="container"><TopNav /><p className="muted">Chargement…</p></div>

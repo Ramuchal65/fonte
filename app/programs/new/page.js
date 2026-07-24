@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import TopNav from '@/components/TopNav'
 import ExercisePicker from '@/components/ExercisePicker'
+import { recordProgramCreated } from '@/lib/gamification'
 
 const emptyExercise = () => ({ name: '', target_type: 'reps', target_reps: '8-12', target_seconds: null, target_weight_kg: null })
 const emptyGroup = () => ({ type: 'classique', rounds: 3, rest_seconds: 90, exercises: [emptyExercise()] })
@@ -126,6 +127,7 @@ export default function NewProgramPage() {
       }
     }
 
+    await recordProgramCreated(supabase, user.id, false)
     router.push('/')
   }
 

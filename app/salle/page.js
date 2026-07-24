@@ -1,4 +1,5 @@
 'use client'
+import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
@@ -100,6 +101,12 @@ export default function SallePage() {
           onAllResolved={() => load(user.id)}
         />
       )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <Link href="/succes" className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
+          🏅 Mes succès
+        </Link>
+      </div>
 
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>

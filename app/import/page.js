@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase-browser'
 import TopNav from '@/components/TopNav'
+import { recordProgramCreated } from '@/lib/gamification'
 
 export default function ImportPage() {
   const supabase = createClient()
@@ -133,6 +134,7 @@ export default function ImportPage() {
       }
     }
 
+    await recordProgramCreated(supabase, user.id, true)
     router.push('/')
   }
 
