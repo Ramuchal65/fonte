@@ -53,6 +53,7 @@ export default function SessionPage() {
   const [steps, setSteps] = useState([])
   const [previousPerf, setPreviousPerf] = useState({})
   const [exerciseGifs, setExerciseGifs] = useState({})
+  const [exerciseInstructions, setExerciseInstructions] = useState({})
   const [sessionId, setSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -102,12 +103,16 @@ export default function SessionPage() {
 
       const { data: gifRows } = await supabase
         .from('exercise_catalog')
-        .select('canonical_name, gif_filename')
+        .select('canonical_name, gif_filename, instructions_fr')
         .in('canonical_name', uniqueNames)
-        .not('gif_filename', 'is', null)
       const gifMap = {}
-      for (const row of gifRows ?? []) gifMap[row.canonical_name] = row.gif_filename
+      const instructionsMap = {}
+      for (const row of gifRows ?? []) {
+        if (row.gif_filename) gifMap[row.canonical_name] = row.gif_filename
+        if (row.instructions_fr) instructionsMap[row.canonical_name] = row.instructions_fr
+      }
       setExerciseGifs(gifMap)
+      setExerciseInstructions(instructionsMap)
 
       const perfs = {}
       for (const name of uniqueNames) {
@@ -267,20 +272,28 @@ export default function SessionPage() {
             const gifFile = exerciseGifs[currentStep.exerciseName]
             if (gifFile && showDemo) {
               return (
-                <button
-                  onClick={() => setShowDemo(false)}
-                  className="exo-demo-toggle"
-                  aria-label="Revenir à l'entraîneur"
-                >
-                  <img
-                    src={`/exercise-gifs/${gifFile}`}
-                    alt={currentStep.exerciseName}
-                    style={{ width: '100%', maxWidth: 200, display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
-                  />
-                  <span className="muted" style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
-                    ◀ Revenir à l'entraîneur
-                  </span>
-                </button>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => setShowDemo(false)}
+                    className="exo-demo-toggle"
+                    aria-label="Revenir à l'entraîneur"
+                    style={{ flex: '0 0 auto', width: 'auto' }}
+                  >
+                    <img
+                      src={`/exercise-gifs/${gifFile}`}
+                      alt={currentStep.exerciseName}
+                      style={{ width: 150, display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
+                    />
+                    <span className="muted" style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
+                      ◀ Retour
+                    </span>
+                  </button>
+                  {exerciseInstructions[currentStep.exerciseName] && (
+                    <p style={{ fontSize: 13, lineHeight: 1.5, flex: '1 1 180px', minWidth: 180, paddingTop: 2 }}>
+                      {exerciseInstructions[currentStep.exerciseName]}
+                    </p>
+                  )}
+                </div>
               )
             }
             return (
