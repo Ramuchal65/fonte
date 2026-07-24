@@ -22,7 +22,8 @@ export default function SessionSummary({ summary, onContinue }) {
     duration_seconds, total_sets, total_reps, total_volume_kg,
     has_previous, is_better, comparable_exercises, improved_exercises,
     base_xp, bonus_xp, xp_earned,
-    level_in_category, max_level, xp_into_level, xp_needed_for_next
+    level_in_category, max_level, xp_into_level, xp_needed_for_next,
+    new_achievements
   } = summary
 
   const xpPct = Math.min(100, Math.round((xp_into_level / xp_needed_for_next) * 100))
@@ -74,6 +75,16 @@ export default function SessionSummary({ summary, onContinue }) {
           <div style={{ background: 'var(--accent-rest)', height: '100%', width: `${xpPct}%`, transition: 'width 0.6s ease' }} />
         </div>
       </div>
+
+      {new_achievements?.length > 0 && (
+        <div className="card" style={{ marginTop: 16, borderColor: 'var(--accent-rest)', textAlign: 'center' }}>
+          <p>
+            🏅 <strong style={{ color: 'var(--accent-rest)' }}>
+              {new_achievements.length} nouveau{new_achievements.length > 1 ? 'x' : ''} succès débloqué{new_achievements.length > 1 ? 's' : ''} !
+            </strong>
+          </p>
+        </div>
+      )}
 
       <button className="btn btn-primary btn-block" style={{ marginTop: 24 }} onClick={onContinue}>
         Voir ma salle
