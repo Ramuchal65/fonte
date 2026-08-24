@@ -21,6 +21,7 @@ export default function SuccesPage() {
   const router = useRouter()
   const [user, setUser] = useState(null)
   const [achievements, setAchievements] = useState(null)
+  const [selected, setSelected] = useState(null)
   const [debugBusy, setDebugBusy] = useState(false)
 
   const load = async (uid) => {
@@ -80,16 +81,46 @@ export default function SuccesPage() {
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: 12 }}>
             {items.map(a => (
-              <div key={a.slug} style={{ textAlign: 'center' }}>
+              <button
+                key={a.slug}
+                onClick={() => setSelected(a)}
+                style={{ background: 'none', border: 'none', padding: 0, textAlign: 'center', cursor: 'pointer', color: 'inherit' }}
+              >
                 <BadgeIcon icon={a.badge_icon} tier={a.badge_tier} size={64} locked={!a.unlocked} />
                 <p style={{ fontSize: 11, marginTop: 4, color: a.unlocked ? 'var(--text)' : 'var(--text-muted)' }}>
                   {a.title}
                 </p>
-              </div>
+              </button>
             ))}
           </div>
         </div>
       ))}
+
+      {selected && (
+        <div
+          onClick={() => setSelected(null)}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(20,20,15,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16
+          }}
+        >
+          <div className="card" style={{ maxWidth: 320, width: '100%', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
+              <BadgeIcon icon={selected.badge_icon} tier={selected.badge_tier} size={88} locked={!selected.unlocked} />
+            </div>
+            <p style={{ fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{selected.title}</p>
+            <p className="muted" style={{ fontSize: 14, marginBottom: selected.unlocked ? 4 : 16 }}>{selected.description}</p>
+            {selected.unlocked ? (
+              <p className="muted tabular" style={{ fontSize: 12, marginBottom: 16 }}>
+                Débloqué le {new Date(selected.unlocked_at).toLocaleDateString('fr-FR')}
+              </p>
+            ) : (
+              <p className="muted" style={{ fontSize: 12, marginBottom: 16, fontStyle: 'italic' }}>Pas encore débloqué</p>
+            )}
+            <button className="btn btn-secondary btn-block" onClick={() => setSelected(null)}>Fermer</button>
+          </div>
+        </div>
+      )}
 
       {DEBUG_TOOLS_ENABLED && (
         <div className="card" style={{ marginTop: 8, borderStyle: 'dashed' }}>
