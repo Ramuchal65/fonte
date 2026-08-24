@@ -42,6 +42,44 @@ function buildSteps(groups) {
   return steps
 }
 
+// Petit sélecteur numérique avec boutons +/-, pour ajuster sans avoir à
+// ouvrir le clavier. step=0.5 pour le poids, 1 pour les répétitions.
+function StepperInput({ value, onChange, step, placeholder, suffix }) {
+  const bump = (delta) => {
+    const current = parseFloat(value) || 0
+    const next = Math.max(0, Math.round((current + delta) / step) * step)
+    onChange(String(Number(next.toFixed(2))))
+  }
+  return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'stretch', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <button
+        type="button"
+        onClick={() => bump(-step)}
+        aria-label="Diminuer"
+        style={{ width: 40, flexShrink: 0, background: 'var(--surface-raised)', border: 'none', color: 'var(--text)', fontSize: 18 }}
+      >
+        −
+      </button>
+      <input
+        type="number"
+        inputMode="decimal"
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{ flex: 1, border: 'none', borderRadius: 0, textAlign: 'center', minWidth: 0 }}
+      />
+      <button
+        type="button"
+        onClick={() => bump(step)}
+        aria-label="Augmenter"
+        style={{ width: 40, flexShrink: 0, background: 'var(--surface-raised)', border: 'none', color: 'var(--text)', fontSize: 18 }}
+      >
+        +
+      </button>
+    </div>
+  )
+}
+
 export default function SessionPage() {
   const { dayId } = useParams()
   const router = useRouter()
@@ -62,6 +100,10 @@ export default function SessionPage() {
   const [phase, setPhase] = useState('exercise') // 'exercise' | 'resting' | 'done'
   const [elapsed, setElapsed] = useState(0)
   const [inputs, setInputs] = useState({ reps: '', weight: '' })
+  // Pile de navigation : permet de revenir à l'écran précédent (repos ou
+  // exercice). Si l'étape qu'on annule avait déjà été loggée, on supprime
+  // la série en base pour éviter un doublon si on la reloggue.
+  const [history, setHistory] = useState([])
 
   useEffect(() => {
     async function init() {
@@ -146,23 +188,26 @@ export default function SessionPage() {
   const currentStep = steps[stepIdx]
   const nextStep = steps[stepIdx + 1]
 
-  // Pré-remplit les répétitions avec le minimum de l'objectif ("8-12" -> 8,
-  // "12" -> 12, "max"/"amrap" -> rien à préremplir).
-  useEffect(() => {
-    if (!currentStep || currentStep.targetType === 'time') return
-    const match = String(currentStep.targetReps ?? '').match(/\d+/)
-    setInputs({ reps: match ? match[0] : '', weight: '' })
-  }, [stepIdx, steps.length])
-
-  useEffect(() => {
-    setShowDemo(false)
-  }, [stepIdx])
-
   const previousForCurrent = useMemo(() => {
     if (!currentStep) return null
     const bySetNumber = previousPerf[currentStep.exerciseName] || {}
     return bySetNumber[currentStep.round] || null
   }, [currentStep, previousPerf])
+
+  // Pré-remplit répétitions (minimum de l'objectif, "8-12" -> 8) ET poids
+  // (dernière performance connue sur cette série) à chaque nouvel exercice.
+  useEffect(() => {
+    if (!currentStep || currentStep.targetType === 'time') return
+    const match = String(currentStep.targetReps ?? '').match(/\d+/)
+    setInputs({
+      reps: match ? match[0] : '',
+      weight: previousForCurrent ? String(previousForCurrent.weight_kg) : ''
+    })
+  }, [stepIdx, steps.length, previousForCurrent])
+
+  useEffect(() => {
+    setShowDemo(false)
+  }, [stepIdx])
 
   const advanceAfterLogging = () => {
     const isLastStep = stepIdx === steps.length - 1
@@ -179,36 +224,52 @@ export default function SessionPage() {
 
   const finishStep = async () => {
     if (!inputs.reps) return
-    await supabase.from('logged_sets').insert({
+    const { data: inserted } = await supabase.from('logged_sets').insert({
       session_id: sessionId,
       exercise_name: currentStep.exerciseName,
       set_number: currentStep.round,
       reps: Number(inputs.reps),
       weight_kg: inputs.weight ? Number(inputs.weight) : 0
-    })
+    }).select().single()
+    setHistory(h => [...h, { stepIdx, phase, loggedSetId: inserted?.id ?? null }])
     setInputs({ reps: '', weight: '' })
     advanceAfterLogging()
   }
 
   const finishTimedStep = async (actualSeconds) => {
-    await supabase.from('logged_sets').insert({
+    const { data: inserted } = await supabase.from('logged_sets').insert({
       session_id: sessionId,
       exercise_name: currentStep.exerciseName,
       set_number: currentStep.round,
       duration_seconds: actualSeconds
-    })
+    }).select().single()
+    setHistory(h => [...h, { stepIdx, phase, loggedSetId: inserted?.id ?? null }])
     advanceAfterLogging()
   }
 
   const afterRest = () => {
+    setHistory(h => [...h, { stepIdx, phase, loggedSetId: null }])
     setStepIdx(i => i + 1)
     setPhase('exercise')
+  }
+
+  const goBack = async () => {
+    if (history.length === 0) return
+    const last = history[history.length - 1]
+    setHistory(h => h.slice(0, -1))
+    if (last.loggedSetId) {
+      await supabase.from('logged_sets').delete().eq('id', last.loggedSetId)
+    }
+    setStepIdx(last.stepIdx)
+    setPhase(last.phase)
   }
 
   const [summary, setSummary] = useState(null)
   const [finishing, setFinishing] = useState(false)
 
-  const finishSession = async () => {
+  // Termine la séance et calcule le bilan/XP à partir de ce qui a déjà été
+  // loggé (utilisé aussi bien par la fin normale que par "Abandonner").
+  const wrapUpSession = async () => {
     setFinishing(true)
     await supabase.from('sessions').update({ finished_at: new Date().toISOString() }).eq('id', sessionId)
     try {
@@ -216,15 +277,19 @@ export default function SessionPage() {
       setSummary(data)
     } catch (e) {
       console.error('Bilan de séance indisponible :', e)
-      router.push('/salle') // on ne bloque pas l'utilisateur si le bilan échoue
+      router.push('/salle')
     }
     setFinishing(false)
   }
 
-  const abandonSession = async () => {
-    await supabase.from('sessions').delete().eq('id', sessionId)
-    router.push('/')
-  }
+  // "Abandonner" = arrêter maintenant, mais GARDER et compter ce qui a déjà
+  // été fait (rien n'est supprimé, contrairement à avant).
+  const abandonSession = () => wrapUpSession()
+
+  // "Accueil" en cours de séance = quitter SANS terminer : la séance reste
+  // ouverte (finished_at à null) en base, sans calcul d'XP. Les séries déjà
+  // loggées restent enregistrées telles quelles.
+  const leaveWithoutFinishing = async () => {}
 
   if (loading) return <div className="container"><TopNav /><p className="muted">Chargement…</p></div>
 
@@ -246,11 +311,32 @@ export default function SessionPage() {
 
   return (
     <div className="container">
-      <TopNav title={dayLabel} onAbandon={abandonSession} />
+      <TopNav
+        title={dayLabel}
+        onAbandon={abandonSession}
+        abandonLabel="Terminer la séance ici"
+        confirmHome
+        homeConfirmMessage="Quitter sans terminer la séance ? Les séries déjà faites restent enregistrées, mais cette séance ne comptera pas dans ton bilan tant que tu ne la termines pas."
+        onBeforeHome={leaveWithoutFinishing}
+      />
 
-      <p className="muted tabular" style={{ fontSize: 13, marginBottom: 16 }}>
-        Étape {Math.min(stepIdx + 1, steps.length)} / {steps.length}
-      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        {history.length > 0 ? (
+          <button
+            onClick={goBack}
+            className="muted"
+            style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+            Précédent
+          </button>
+        ) : <span />}
+        <p className="muted tabular" style={{ fontSize: 13 }}>
+          Étape {Math.min(stepIdx + 1, steps.length)} / {steps.length}
+        </p>
+      </div>
 
       {phase === 'resting' && currentStep && (
         <>
@@ -336,19 +422,17 @@ export default function SessionPage() {
           ) : (
             <>
               <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  placeholder={previousForCurrent ? `${previousForCurrent.weight_kg} kg` : 'kg'}
+                <StepperInput
                   value={inputs.weight}
-                  onChange={e => setInputs(prev => ({ ...prev, weight: e.target.value }))}
+                  onChange={v => setInputs(prev => ({ ...prev, weight: v }))}
+                  step={0.5}
+                  placeholder={previousForCurrent ? `${previousForCurrent.weight_kg} kg` : 'kg'}
                 />
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  placeholder={previousForCurrent ? `${previousForCurrent.reps} reps` : 'reps'}
+                <StepperInput
                   value={inputs.reps}
-                  onChange={e => setInputs(prev => ({ ...prev, reps: e.target.value }))}
+                  onChange={v => setInputs(prev => ({ ...prev, reps: v }))}
+                  step={1}
+                  placeholder={previousForCurrent ? `${previousForCurrent.reps} reps` : 'reps'}
                 />
               </div>
 
@@ -369,7 +453,7 @@ export default function SessionPage() {
       {phase === 'done' && (
         <div className="card" style={{ textAlign: 'center' }}>
           <h2 style={{ fontSize: 22, marginBottom: 12 }}>Séance terminée</h2>
-          <button className="btn btn-primary btn-block" onClick={finishSession} disabled={finishing}>
+          <button className="btn btn-primary btn-block" onClick={wrapUpSession} disabled={finishing}>
             {finishing ? 'Calcul du bilan…' : 'Voir mon bilan'}
           </button>
         </div>
