@@ -1,5 +1,7 @@
 'use client'
 
+import BadgeIcon from './BadgeIcon'
+
 function formatDuration(seconds) {
   const m = Math.round(seconds / 60)
   if (m < 60) return `${m} min`
@@ -77,12 +79,21 @@ export default function SessionSummary({ summary, onContinue }) {
       </div>
 
       {new_achievements?.length > 0 && (
-        <div className="card" style={{ marginTop: 16, borderColor: 'var(--accent-rest)', textAlign: 'center' }}>
-          <p>
+        <div className="card" style={{ marginTop: 16, borderColor: 'var(--accent-rest)' }}>
+          <p style={{ textAlign: 'center', marginBottom: 10 }}>
             🏅 <strong style={{ color: 'var(--accent-rest)' }}>
               {new_achievements.length} nouveau{new_achievements.length > 1 ? 'x' : ''} succès débloqué{new_achievements.length > 1 ? 's' : ''} !
             </strong>
           </p>
+          {new_achievements.map(a => (
+            <div key={a.slug} style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 8 }}>
+              <BadgeIcon icon={a.badge_icon} tier={a.badge_tier} size={36} />
+              <div>
+                <p style={{ fontSize: 14, fontWeight: 600 }}>{a.title}</p>
+                <p className="muted" style={{ fontSize: 12 }}>{a.description}</p>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

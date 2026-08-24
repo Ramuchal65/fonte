@@ -1,9 +1,30 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 
+// Joue un petit bip synthétisé (aucun fichier audio nécessaire).
+function playBeep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.value = 880
+    gain.gain.setValueAtTime(0.15, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.15)
+    osc.onended = () => ctx.close()
+  } catch (e) { /* audio non disponible, tant pis */ }
+}
+
 export default function RestTimer({ seconds, onDone, resetKey }) {
   const [remaining, setRemaining] = useState(seconds)
   const intervalRef = useRef(null)
+  const wakeLockRef = useRef(null)
 
   useEffect(() => {
     setRemaining(seconds)
@@ -15,11 +36,42 @@ export default function RestTimer({ seconds, onDone, resetKey }) {
       if (remaining === 0) onDone?.()
       return
     }
+    if (remaining <= 5) playBeep()
     intervalRef.current = setInterval(() => {
       setRemaining(r => r - 1)
     }, 1000)
     return () => clearInterval(intervalRef.current)
   }, [remaining])
+
+  // Empêche l'écran de se verrouiller pendant le repos (utile sur téléphone :
+  // sinon l'écran s'éteint et on rate le décompte). Relâché à la fin du
+  // repos ou si l'écran se remet en veille (revient automatiquement si
+  // l'onglet redevient visible pendant qu'on est encore en repos).
+  useEffect(() => {
+    if (!('wakeLock' in navigator)) return
+    let cancelled = false
+
+    const acquire = async () => {
+      try {
+        const lock = await navigator.wakeLock.request('screen')
+        if (cancelled) { lock.release(); return }
+        wakeLockRef.current = lock
+      } catch (e) { /* refusé (économie de batterie, etc.) - tant pis */ }
+    }
+    acquire()
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && !wakeLockRef.current) acquire()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisibility)
+      wakeLockRef.current?.release().catch(() => {})
+      wakeLockRef.current = null
+    }
+  }, [])
 
   const pct = Math.max(0, Math.min(1, remaining / seconds))
   const mm = Math.floor(Math.max(remaining, 0) / 60)

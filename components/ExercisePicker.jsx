@@ -7,9 +7,10 @@ function normalize(s) {
 
 const MUSCLE_GROUP_LABELS = {
   pectoraux: 'Pectoraux', dos: 'Dos', epaules: 'Épaules',
-  biceps: 'Biceps', triceps: 'Triceps',
+  biceps: 'Biceps', triceps: 'Triceps', avant_bras: 'Avant-bras',
   quadriceps: 'Quadriceps', ischios_jambiers: 'Ischios', fessiers: 'Fessiers', mollets: 'Mollets',
-  core: 'Core', cardio: 'Cardio', full_body: 'Full body'
+  hanches: 'Hanches', nuque: 'Nuque',
+  core: 'Core', cardio: 'Cardio', etirements: 'Étirements', full_body: 'Full body'
 }
 
 // Champ texte avec suggestions issues du référentiel d'exercices (recherche
@@ -111,7 +112,14 @@ export default function ExercisePicker({ value, onChange, catalog }) {
               onMouseDown={e => e.preventDefault()}
             >
               <span style={{ fontSize: 14 }}>{s.canonical_name}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{MUSCLE_GROUP_LABELS[s.muscle_group] || s.muscle_group}</span>
+              <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+                {s.is_translated === false && (
+                  <span className="muted" style={{ fontSize: 9, border: '1px solid var(--border)', borderRadius: 4, padding: '1px 4px' }}>
+                    EN
+                  </span>
+                )}
+                <span className="muted" style={{ fontSize: 11 }}>{MUSCLE_GROUP_LABELS[s.muscle_group] || s.muscle_group}</span>
+              </span>
             </button>
           ))}
         </div>
