@@ -82,15 +82,15 @@ export default function ProgramsPage() {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {programs.map(p => (
           <div key={p.id} className="card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{ fontWeight: 600 }}>{p.name}</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+                <p style={{ fontWeight: 600, overflowWrap: 'break-word' }}>{p.name}</p>
                 <p className="muted" style={{ fontSize: 13 }}>
                   {new Date(p.created_at).toLocaleDateString('fr-FR')}
                   {!p.archived_at && ' · actif'}
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {p.archived_at && (
                   <button className="btn btn-secondary" onClick={() => reactivate(p.id)}>
                     Rendre actif

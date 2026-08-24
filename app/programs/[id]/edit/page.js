@@ -20,7 +20,7 @@ export default function EditProgramPage() {
   useEffect(() => {
     supabase
       .from('exercise_catalog')
-      .select('canonical_name, muscle_group, aliases')
+      .select('canonical_name, muscle_group, aliases, is_translated')
       .order('canonical_name')
       .then(({ data }) => setCatalog(data ?? []))
   }, [])
