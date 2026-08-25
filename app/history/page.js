@@ -60,7 +60,7 @@ export default function HistoryPage() {
     async function loadEntries() {
       const { data } = await supabase
         .from('logged_sets')
-        .select('reps, weight_kg, set_number, logged_at, sessions!inner(user_id)')
+        .select('reps, weight_kg, duration_seconds, set_number, logged_at, sessions!inner(user_id)')
         .eq('exercise_name', selected)
         .eq('sessions.user_id', user.id)
         .order('logged_at', { ascending: true })
@@ -82,6 +82,17 @@ export default function HistoryPage() {
     return sorted
   }, [exerciseStats, sortBy, query])
 
+  // Type d'exercice déduit des données réellement loggées : chronométré
+  // (durée), poids du corps (jamais de charge), ou classique (charge+reps).
+  // Les métriques "charge" n'ont aucun sens pour les deux premiers cas —
+  // c'est ce qui donnait des graphes vides/plats à 0 pour le poids du corps.
+  const exerciseType = useMemo(() => {
+    if (entries.length === 0) return 'classique'
+    if (entries.some(e => e.duration_seconds != null)) return 'temps'
+    if (entries.every(e => !e.weight_kg)) return 'poids_du_corps'
+    return 'classique'
+  }, [entries])
+
   // Regroupe les séries par séance (même jour)
   const bySession = entries.reduce((acc, e) => {
     const dateKey = new Date(e.logged_at).toLocaleDateString('fr-FR')
@@ -90,10 +101,21 @@ export default function HistoryPage() {
     return acc
   }, {})
 
-  // 3 métriques par séance : reps max, charge totale (Σ reps×kg), et 1RM
-  // estimé (formule d'Epley : poids × (1 + reps/30), sur la meilleure série).
+  // Métriques par séance, adaptées au type d'exercice :
+  // - classique : 1RM estimé (Epley), charge totale, reps max
+  // - poids du corps : reps max + reps totales (pas de kg, toujours 0)
+  // - temps : durée max tenue + durée totale
   const metricsPerSession = Object.entries(bySession).map(([date, sets]) => {
+    if (exerciseType === 'temps') {
+      const maxDuration = Math.max(...sets.map(s => s.duration_seconds || 0))
+      const totalDuration = sets.reduce((sum, s) => sum + (s.duration_seconds || 0), 0)
+      return { date, maxDuration, totalDuration }
+    }
     const maxReps = Math.max(...sets.map(s => s.reps || 0))
+    const totalReps = sets.reduce((sum, s) => sum + (s.reps || 0), 0)
+    if (exerciseType === 'poids_du_corps') {
+      return { date, maxReps, totalReps }
+    }
     const totalVolume = sets.reduce((sum, s) => sum + (s.reps || 0) * (s.weight_kg || 0), 0)
     const maxE1RM = Math.max(...sets.map(s => (s.weight_kg || 0) * (1 + (s.reps || 0) / 30)))
     return { date, maxReps, totalVolume, maxE1RM: Math.round(maxE1RM * 10) / 10 }
@@ -173,24 +195,61 @@ export default function HistoryPage() {
 
           {metricsPerSession.length > 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
-              <MetricChart
-                title="Charge max estimée pour 1 répétition"
-                unit="kg"
-                points={metricsPerSession.map(m => ({ date: m.date, value: m.maxE1RM }))}
-                color="var(--accent)"
-              />
-              <MetricChart
-                title="Charge totale soulevée"
-                unit="kg"
-                points={metricsPerSession.map(m => ({ date: m.date, value: m.totalVolume }))}
-                color="var(--accent-rest)"
-              />
-              <MetricChart
-                title="Répétitions max sur une série"
-                unit="reps"
-                points={metricsPerSession.map(m => ({ date: m.date, value: m.maxReps }))}
-                color="#C9A84C"
-              />
+              {exerciseType === 'temps' ? (
+                <>
+                  <MetricChart
+                    title="Durée max tenue sur une série"
+                    unit="s"
+                    points={metricsPerSession.map(m => ({ date: m.date, value: m.maxDuration }))}
+                    color="var(--accent)"
+                  />
+                  <MetricChart
+                    title="Durée totale de la séance"
+                    unit="s"
+                    points={metricsPerSession.map(m => ({ date: m.date, value: m.totalDuration }))}
+                    color="var(--accent-rest)"
+                  />
+                </>
+              ) : exerciseType === 'poids_du_corps' ? (
+                <>
+                  <MetricChart
+                    title="Répétitions max sur une série"
+                    unit="reps"
+                    points={metricsPerSession.map(m => ({ date: m.date, value: m.maxReps }))}
+                    color="var(--accent)"
+                  />
+                  <MetricChart
+                    title="Répétitions totales de la séance"
+                    unit="reps"
+                    points={metricsPerSession.map(m => ({ date: m.date, value: m.totalReps }))}
+                    color="var(--accent-rest)"
+                  />
+                  <p className="muted" style={{ fontSize: 12, marginTop: -8 }}>
+                    Poids du corps : pas de charge à afficher ici (toujours à 0).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <MetricChart
+                    title="Charge max estimée pour 1 répétition"
+                    unit="kg"
+                    points={metricsPerSession.map(m => ({ date: m.date, value: m.maxE1RM }))}
+                    color="var(--accent)"
+                  />
+                  <MetricChart
+                    title="Charge totale soulevée"
+                    unit="kg"
+                    points={metricsPerSession.map(m => ({ date: m.date, value: m.totalVolume }))}
+                    color="var(--accent-rest)"
+                  />
+                  <MetricChart
+                    title="Répétitions max sur une série"
+                    unit="reps"
+                    points={metricsPerSession.map(m => ({ date: m.date, value: m.maxReps }))}
+                    color="#C9A84C"
+                  />
+                </>
+              )}
             </div>
           )}
 
@@ -200,7 +259,11 @@ export default function HistoryPage() {
                 <p className="muted" style={{ fontSize: 13, marginBottom: 6 }}>{date}</p>
                 {sets.map((s, i) => (
                   <p key={i} className="tabular" style={{ fontSize: 15 }}>
-                    Série {s.set_number} — {s.weight_kg} kg × {s.reps}
+                    {s.duration_seconds != null
+                      ? `Série ${s.set_number} — ${s.duration_seconds} s`
+                      : exerciseType === 'poids_du_corps'
+                        ? `Série ${s.set_number} — ${s.reps} reps`
+                        : `Série ${s.set_number} — ${s.weight_kg} kg × ${s.reps}`}
                   </p>
                 ))}
               </div>
