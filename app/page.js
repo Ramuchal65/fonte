@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase-browser'
 import LoginButton from '@/components/LoginButton'
 import AppHeader from '@/components/AppHeader'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
-import { getRoomState } from '@/lib/gamification'
+import { getRoomState, duplicateLastSession } from '@/lib/gamification'
 
 export default function Home() {
   const supabase = createClient()
@@ -15,6 +15,8 @@ export default function Home() {
   const [profile, setProfile] = useState(undefined)
   const [program, setProgram] = useState(null)
   const [days, setDays] = useState([])
+  const [daysWithHistory, setDaysWithHistory] = useState(new Set())
+  const [duplicating, setDuplicating] = useState(null)
   const [loading, setLoading] = useState(true)
   const [xpProgress, setXpProgress] = useState(null)
 
@@ -73,6 +75,16 @@ export default function Home() {
           .eq('program_id', prog.id)
           .order('position')
         if (!cancelled) setDays(d ?? [])
+
+        if (d?.length) {
+          const { data: sessRows } = await supabase
+            .from('sessions')
+            .select('program_day_id')
+            .in('program_day_id', d.map(x => x.id))
+            .eq('user_id', user.id)
+            .not('finished_at', 'is', null)
+          if (!cancelled) setDaysWithHistory(new Set((sessRows ?? []).map(s => s.program_day_id)))
+        }
       } else {
         setDays([])
       }
@@ -121,15 +133,35 @@ export default function Home() {
           <p className="muted" style={{ marginBottom: 16 }}>{program.name}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {days.map(day => (
-              <Link
-                key={day.id}
-                href={`/session/${day.id}`}
-                className="card"
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-              >
-                <span className="display" style={{ fontSize: 20 }}>{day.label}</span>
-                <span className="muted">Démarrer →</span>
-              </Link>
+              <div key={day.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Link
+                  href={`/session/${day.id}`}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <span className="display" style={{ fontSize: 20 }}>{day.label}</span>
+                  <span className="muted">Démarrer →</span>
+                </Link>
+                {daysWithHistory.has(day.id) && (
+                  <button
+                    className="btn btn-secondary"
+                    style={{ fontSize: 13, padding: '8px 12px', minHeight: 'auto' }}
+                    disabled={duplicating === day.id}
+                    onClick={async (e) => {
+                      e.preventDefault()
+                      setDuplicating(day.id)
+                      try {
+                        await duplicateLastSession(supabase, user.id, day.id)
+                        router.push('/salle')
+                      } catch (err) {
+                        console.error(err)
+                        setDuplicating(null)
+                      }
+                    }}
+                  >
+                    {duplicating === day.id ? 'Duplication…' : '⧉ Refaire la dernière séance à l\'identique'}
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </>

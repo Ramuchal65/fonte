@@ -77,6 +77,7 @@ export async function POST(request) {
   const { data: catalog } = await supabase
     .from('exercise_catalog')
     .select('canonical_name')
+    .eq('is_translated', true)
     .order('canonical_name')
   const catalogNames = (catalog ?? []).map(c => c.canonical_name)
   const catalogSet = new Set(catalogNames)

@@ -7,8 +7,9 @@ import ExerciseTimer from '@/components/ExerciseTimer'
 import TopNav from '@/components/TopNav'
 import CoachAvatar from '@/components/CoachAvatar'
 import SessionSummary from '@/components/SessionSummary'
+import PlateCalculator from '@/components/PlateCalculator'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
-import { finishSessionAndAwardXp } from '@/lib/gamification'
+import { finishSessionAndAwardXp, saveExerciseNote } from '@/lib/gamification'
 
 // Construit la séquence linéaire d'étapes à partir des groupes de la journée.
 // Classique : exercice répété "rounds" fois d'affilée (repos après chaque série).
@@ -100,6 +101,11 @@ export default function SessionPage() {
   const [phase, setPhase] = useState('exercise') // 'exercise' | 'resting' | 'done'
   const [elapsed, setElapsed] = useState(0)
   const [inputs, setInputs] = useState({ reps: '', weight: '' })
+  const [rpe, setRpe] = useState(null)
+  const [showRpe, setShowRpe] = useState(false)
+  const [notesByExercise, setNotesByExercise] = useState({})
+  const [showNote, setShowNote] = useState(false)
+  const [showPlateCalc, setShowPlateCalc] = useState(false)
   // Pile de navigation : permet de revenir à l'écran précédent (repos ou
   // exercice). Si l'étape qu'on annule avait déjà été loggée, on supprime
   // la série en base pour éviter un doublon si on la reloggue.
@@ -207,6 +213,9 @@ export default function SessionPage() {
 
   useEffect(() => {
     setShowDemo(false)
+    setShowNote(false)
+    setShowRpe(false)
+    setRpe(null)
   }, [stepIdx])
 
   const advanceAfterLogging = () => {
@@ -229,10 +238,12 @@ export default function SessionPage() {
       exercise_name: currentStep.exerciseName,
       set_number: currentStep.round,
       reps: Number(inputs.reps),
-      weight_kg: inputs.weight ? Number(inputs.weight) : 0
+      weight_kg: inputs.weight ? Number(inputs.weight) : 0,
+      rpe: rpe
     }).select().single()
     setHistory(h => [...h, { stepIdx, phase, loggedSetId: inserted?.id ?? null }])
     setInputs({ reps: '', weight: '' })
+    setRpe(null)
     advanceAfterLogging()
   }
 
@@ -421,7 +432,7 @@ export default function SessionPage() {
             />
           ) : (
             <>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <StepperInput
                   value={inputs.weight}
                   onChange={v => setInputs(prev => ({ ...prev, weight: v }))}
@@ -434,7 +445,67 @@ export default function SessionPage() {
                   step={1}
                   placeholder={previousForCurrent ? `${previousForCurrent.reps} reps` : 'reps'}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPlateCalc(true)}
+                  aria-label="Calculateur de plaques"
+                  title="Calculateur de plaques"
+                  style={{ flex: '0 0 auto', width: 44, background: 'var(--surface-raised)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 18 }}
+                >
+                  🏋️
+                </button>
               </div>
+
+              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowRpe(v => !v)}
+                  className="muted"
+                  style={{ background: 'none', border: 'none', fontSize: 12, padding: 0 }}
+                >
+                  {rpe ? `RPE ${rpe} ✓` : '+ RPE'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowNote(v => !v)}
+                  className="muted"
+                  style={{ background: 'none', border: 'none', fontSize: 12, padding: 0 }}
+                >
+                  {notesByExercise[currentStep.exerciseName] ? '📝 Note ✓' : '+ Note'}
+                </button>
+              </div>
+
+              {showRpe && (
+                <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
+                  {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => setRpe(n)}
+                      className="tabular"
+                      style={{
+                        width: 28, height: 28, borderRadius: 6, fontSize: 12,
+                        border: '1px solid var(--border)',
+                        background: rpe === n ? 'var(--accent-rest)' : 'var(--surface-raised)',
+                        color: rpe === n ? '#14140F' : 'var(--text)'
+                      }}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {showNote && (
+                <textarea
+                  value={notesByExercise[currentStep.exerciseName] || ''}
+                  onChange={e => setNotesByExercise(prev => ({ ...prev, [currentStep.exerciseName]: e.target.value }))}
+                  onBlur={e => saveExerciseNote(supabase, sessionId, currentStep.exerciseName, e.target.value)}
+                  placeholder="Ex : épaule qui tirait un peu, à surveiller…"
+                  rows={2}
+                  style={{ width: '100%', marginBottom: 12, fontSize: 13 }}
+                />
+              )}
 
               <button className="btn btn-primary btn-block" onClick={finishStep}>
                 Exercice terminé
@@ -457,6 +528,10 @@ export default function SessionPage() {
             {finishing ? 'Calcul du bilan…' : 'Voir mon bilan'}
           </button>
         </div>
+      )}
+
+      {showPlateCalc && (
+        <PlateCalculator targetWeight={inputs.weight} onClose={() => setShowPlateCalc(false)} />
       )}
     </div>
   )

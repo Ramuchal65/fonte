@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase-browser'
 import AvatarBuilder from '@/components/AvatarBuilder'
 import TopNav from '@/components/TopNav'
@@ -64,6 +65,12 @@ export default function ProfilePage() {
         submitLabel="Mettre à jour"
       />
       {saved && <p style={{ color: 'var(--accent-rest)', marginTop: 12, textAlign: 'center' }}>Profil mis à jour ✓</p>}
+
+      <div style={{ textAlign: 'center', marginTop: 24 }}>
+        <Link href="/corps" className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
+          ⚖️ Suivi du poids et des mensurations
+        </Link>
+      </div>
     </div>
   )
 }

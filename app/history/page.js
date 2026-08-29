@@ -21,6 +21,7 @@ export default function HistoryPage() {
   const [exerciseStats, setExerciseStats] = useState([]) // [{name, lastDate, sessionCount}]
   const [selected, setSelected] = useState(null)
   const [entries, setEntries] = useState([])
+  const [notesBySession, setNotesBySession] = useState({})
   const [loading, setLoading] = useState(true)
   const [sortBy, setSortBy] = useState('recent')
   const [query, setQuery] = useState('')
@@ -60,11 +61,25 @@ export default function HistoryPage() {
     async function loadEntries() {
       const { data } = await supabase
         .from('logged_sets')
-        .select('reps, weight_kg, duration_seconds, set_number, logged_at, sessions!inner(user_id)')
+        .select('reps, weight_kg, duration_seconds, rpe, set_number, logged_at, session_id, sessions!inner(user_id)')
         .eq('exercise_name', selected)
         .eq('sessions.user_id', user.id)
         .order('logged_at', { ascending: true })
       setEntries(data ?? [])
+
+      const sessionIds = [...new Set((data ?? []).map(e => e.session_id))]
+      if (sessionIds.length > 0) {
+        const { data: noteRows } = await supabase
+          .from('session_exercise_notes')
+          .select('session_id, note')
+          .eq('exercise_name', selected)
+          .in('session_id', sessionIds)
+        const map = {}
+        for (const n of noteRows ?? []) map[n.session_id] = n.note
+        setNotesBySession(map)
+      } else {
+        setNotesBySession({})
+      }
     }
     loadEntries()
   }, [selected, user])
@@ -101,6 +116,13 @@ export default function HistoryPage() {
     return acc
   }, {})
 
+  // Notes agrégées par date (concatène si jamais plusieurs séances le même jour)
+  const notesByDate = {}
+  for (const [dateKey, sets] of Object.entries(bySession)) {
+    const notes = [...new Set(sets.map(s => notesBySession[s.session_id]).filter(Boolean))]
+    if (notes.length > 0) notesByDate[dateKey] = notes.join(' · ')
+  }
+
   // Métriques par séance, adaptées au type d'exercice :
   // - classique : 1RM estimé (Epley), charge totale, reps max
   // - poids du corps : reps max + reps totales (pas de kg, toujours 0)
@@ -120,6 +142,35 @@ export default function HistoryPage() {
     const maxE1RM = Math.max(...sets.map(s => (s.weight_kg || 0) * (1 + (s.reps || 0) / 30)))
     return { date, maxReps, totalVolume, maxE1RM: Math.round(maxE1RM * 10) / 10 }
   })
+
+  // "Il y a X mois" : compare la toute première séance connue à la plus
+  // récente, sur la métrique la plus parlante selon le type d'exercice.
+  const progressComparison = useMemo(() => {
+    if (metricsPerSession.length < 2) return null
+    const first = metricsPerSession[0]
+    const last = metricsPerSession[metricsPerSession.length - 1]
+    const firstDate = new Date(entries[0].logged_at)
+    const lastDate = new Date(entries[entries.length - 1].logged_at)
+    const monthsApart = Math.round((lastDate - firstDate) / (1000 * 60 * 60 * 24 * 30))
+    if (monthsApart < 1) return null
+
+    const metricKey = exerciseType === 'temps' ? 'maxDuration' : exerciseType === 'poids_du_corps' ? 'maxReps' : 'maxE1RM'
+    const unit = exerciseType === 'temps' ? 's' : exerciseType === 'poids_du_corps' ? 'reps' : 'kg'
+    const before = first[metricKey]
+    const now = last[metricKey]
+    if (!before) return null
+    const pct = Math.round(((now - before) / before) * 100)
+    return { monthsApart, before, now, unit, pct }
+  }, [metricsPerSession, entries, exerciseType])
+
+  // Détection de plateau : sur les 4 dernières séances (classique
+  // uniquement, où le 1RM estimé est la métrique la plus fiable), le
+  // 1RM n'a pas progressé -> suggestion de semaine plus légère.
+  const plateauDetected = useMemo(() => {
+    if (exerciseType !== 'classique' || metricsPerSession.length < 4) return false
+    const last4 = metricsPerSession.slice(-4).map(m => m.maxE1RM)
+    return last4[last4.length - 1] <= last4[0]
+  }, [metricsPerSession, exerciseType])
 
   if (loading) return <div className="container"><TopNav /><p className="muted">Chargement…</p></div>
 
@@ -193,6 +244,28 @@ export default function HistoryPage() {
 
           <h2 style={{ fontSize: 20, marginBottom: 16 }}>{selected}</h2>
 
+          {progressComparison && (
+            <div className="card" style={{ marginBottom: 12, borderColor: progressComparison.pct > 0 ? 'var(--accent-rest)' : undefined }}>
+              <p style={{ fontSize: 13 }}>
+                Il y a {progressComparison.monthsApart} mois : <strong className="tabular">{progressComparison.before} {progressComparison.unit}</strong>.
+                {' '}Aujourd'hui : <strong className="tabular">{progressComparison.now} {progressComparison.unit}</strong>
+                {progressComparison.pct !== 0 && (
+                  <span style={{ color: progressComparison.pct > 0 ? 'var(--accent-rest)' : 'var(--accent)' }}>
+                    {' '}({progressComparison.pct > 0 ? '+' : ''}{progressComparison.pct}%)
+                  </span>
+                )}
+              </p>
+            </div>
+          )}
+
+          {plateauDetected && (
+            <div className="card" style={{ marginBottom: 12, borderColor: 'var(--accent)' }}>
+              <p style={{ fontSize: 13 }}>
+                📉 Pas de progression sur les 4 dernières séances — une semaine plus légère (deload) pourrait aider à repartir de l'avant.
+              </p>
+            </div>
+          )}
+
           {metricsPerSession.length > 1 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginBottom: 20 }}>
               {exerciseType === 'temps' ? (
@@ -264,8 +337,14 @@ export default function HistoryPage() {
                       : exerciseType === 'poids_du_corps'
                         ? `Série ${s.set_number} — ${s.reps} reps`
                         : `Série ${s.set_number} — ${s.weight_kg} kg × ${s.reps}`}
+                    {s.rpe && <span className="muted"> · RPE {s.rpe}</span>}
                   </p>
                 ))}
+                {notesByDate[date] && (
+                  <p className="muted" style={{ fontSize: 13, marginTop: 6, fontStyle: 'italic' }}>
+                    📝 {notesByDate[date]}
+                  </p>
+                )}
               </div>
             ))}
           </div>

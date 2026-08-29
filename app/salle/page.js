@@ -102,7 +102,10 @@ export default function SallePage() {
         />
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, marginBottom: 12 }}>
+        <Link href="/bilan" className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
+          📊 Mon bilan
+        </Link>
         <Link href="/succes" className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
           🏅 Mes succès
         </Link>
