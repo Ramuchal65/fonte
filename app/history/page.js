@@ -23,6 +23,7 @@ export default function HistoryPage() {
   const [entries, setEntries] = useState([])
   const [notesBySession, setNotesBySession] = useState({})
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [sortBy, setSortBy] = useState('recent')
   const [query, setQuery] = useState('')
 
@@ -36,10 +37,17 @@ export default function HistoryPage() {
   useEffect(() => {
     if (!user) return
     async function load() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('logged_sets')
         .select('exercise_name, session_id, logged_at, sessions!inner(user_id)')
         .eq('sessions.user_id', user.id)
+
+      if (error) {
+        console.error('Erreur chargement historique :', error)
+        setLoadError(error.message)
+        setLoading(false)
+        return
+      }
 
       const byName = {}
       for (const row of data ?? []) {
@@ -59,24 +67,39 @@ export default function HistoryPage() {
   useEffect(() => {
     if (!selected || !user) return
     async function loadEntries() {
-      const { data } = await supabase
+      setLoadError('')
+      const { data, error } = await supabase
         .from('logged_sets')
         .select('reps, weight_kg, duration_seconds, rpe, set_number, logged_at, session_id, sessions!inner(user_id)')
         .eq('exercise_name', selected)
         .eq('sessions.user_id', user.id)
         .order('logged_at', { ascending: true })
+
+      if (error) {
+        console.error('Erreur chargement des séries :', error)
+        setLoadError(error.message)
+        setEntries([])
+        return
+      }
       setEntries(data ?? [])
 
       const sessionIds = [...new Set((data ?? []).map(e => e.session_id))]
       if (sessionIds.length > 0) {
-        const { data: noteRows } = await supabase
+        const { data: noteRows, error: noteErr } = await supabase
           .from('session_exercise_notes')
           .select('session_id, note')
           .eq('exercise_name', selected)
           .in('session_id', sessionIds)
-        const map = {}
-        for (const n of noteRows ?? []) map[n.session_id] = n.note
-        setNotesBySession(map)
+        if (noteErr) {
+          // Les notes sont un bonus : si leur table n'existe pas encore
+          // (migration pas jouée), on n'empêche pas d'afficher le reste.
+          console.error('Notes indisponibles :', noteErr)
+          setNotesBySession({})
+        } else {
+          const map = {}
+          for (const n of noteRows ?? []) map[n.session_id] = n.note
+          setNotesBySession(map)
+        }
       } else {
         setNotesBySession({})
       }
@@ -179,7 +202,14 @@ export default function HistoryPage() {
       <TopNav />
       <h1 style={{ fontSize: 24, marginBottom: 16 }}>Historique des performances</h1>
 
-      {exerciseStats.length === 0 && (
+      {loadError && (
+        <div className="card" style={{ marginBottom: 16, borderColor: 'var(--accent)' }}>
+          <p style={{ fontSize: 13, marginBottom: 4 }}>Impossible de charger l'historique.</p>
+          <p className="muted" style={{ fontSize: 12 }}>{loadError}</p>
+        </div>
+      )}
+
+      {exerciseStats.length === 0 && !loadError && (
         <p className="muted">Pas encore de séries loggées.</p>
       )}
 
