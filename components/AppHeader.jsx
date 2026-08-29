@@ -26,12 +26,12 @@ function AvatarRing({ size, xpProgress }) {
 
 // Identité compacte en haut de l'accueil : avatar (avec anneau XP) + pseudo,
 // clique vers /profile. La navigation elle-même vit dans BottomNav.
-export default function AppHeader({ pseudo, avatar, xpProgress }) {
+export default function AppHeader({ pseudo, avatar, xpProgress, noMargin }) {
   const avatarSize = 44
   return (
     <Link
       href="/profile"
-      style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', marginBottom: 24 }}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none', marginBottom: noMargin ? 0 : 24 }}
     >
       <span style={{ position: 'relative', display: 'block', width: avatarSize, height: avatarSize, flexShrink: 0 }}>
         <AvatarRing size={avatarSize} xpProgress={xpProgress} />

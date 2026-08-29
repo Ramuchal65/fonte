@@ -80,6 +80,24 @@ export default function RestTimer({ seconds, onDone, resetKey }) {
         <button className="btn btn-secondary" style={{ marginTop: 12 }} onClick={() => setRemaining(0)}>
           Passer le repos
         </button>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => setRemaining(r => Math.max(0, r - 15))}
+            className="muted"
+            style={{ background: 'none', border: 'none', fontSize: 12, padding: '4px 8px' }}
+          >
+            −15s
+          </button>
+          <button
+            type="button"
+            onClick={() => setRemaining(r => r + 15)}
+            className="muted"
+            style={{ background: 'none', border: 'none', fontSize: 12, padding: '4px 8px' }}
+          >
+            +15s
+          </button>
+        </div>
       </div>
     </div>
   )

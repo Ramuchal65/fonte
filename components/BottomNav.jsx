@@ -37,7 +37,7 @@ const ITEMS = [
 // libellé (dans une pastille teintée) ; les autres restent en icône
 // seule et discrète — pattern Material 3 / la plupart des apps bien
 // notées en 2026, qui réduit le bruit visuel d'une nav à 4 items.
-export default function BottomNav({ visible }) {
+export default function BottomNav({ visible, notifyPaths = [] }) {
   const pathname = usePathname()
   if (!visible) return null
 
@@ -52,7 +52,10 @@ export default function BottomNav({ visible }) {
             aria-current={active ? 'page' : undefined}
             className={`bottom-nav__item${active ? ' bottom-nav__item--active' : ''}`}
           >
-            <span className="bottom-nav__icon">{ICONS[item.icon]}</span>
+            <span className="bottom-nav__icon" style={{ position: 'relative' }}>
+              {ICONS[item.icon]}
+              {notifyPaths.includes(item.href) && <span className="bottom-nav__dot" aria-label="Notification" />}
+            </span>
             <span className="bottom-nav__label">{item.label}</span>
           </Link>
         )
@@ -90,6 +93,16 @@ export default function BottomNav({ visible }) {
         .bottom-nav__icon {
           display: flex;
           transition: transform 0.2s ease;
+        }
+        .bottom-nav__dot {
+          position: absolute;
+          top: -2px;
+          right: -2px;
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--accent);
+          border: 1.5px solid var(--surface);
         }
         .bottom-nav__label {
           font-size: 12.5px;
