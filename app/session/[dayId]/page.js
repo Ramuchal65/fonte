@@ -356,8 +356,8 @@ export default function SessionPage() {
         {history.length > 0 ? (
           <button
             onClick={goBack}
-            className="muted"
-            style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            className="link-action"
+            style={{ fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4 }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
@@ -403,7 +403,7 @@ export default function SessionPage() {
                       alt={currentStep.exerciseName}
                       style={{ width: 150, display: 'block', borderRadius: 10, border: '1px solid var(--border)' }}
                     />
-                    <span className="muted" style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
+                    <span className="link-action" style={{ fontSize: 11, marginTop: 6, display: 'block' }}>
                       ◀ Retour
                     </span>
                   </button>
@@ -481,8 +481,8 @@ export default function SessionPage() {
               <button
                 type="button"
                 onClick={() => setShowMore(v => !v)}
-                className="muted"
-                style={{ background: 'none', border: 'none', fontSize: 12, padding: 0, marginBottom: 12, display: 'block' }}
+                className="link-action"
+                style={{ fontSize: 12, marginBottom: 12, display: 'block' }}
               >
                 {showMore ? '▲ Moins d\'options' : '⋯ Plus d\'options (RPE, note)'}
                 {(rpe || notesByExercise[currentStep.exerciseName]) && !showMore && ' ✓'}
@@ -538,8 +538,8 @@ export default function SessionPage() {
           {stepIdx < steps.length - 1 && (
             <button
               onClick={setAsideStep}
-              className="muted"
-              style={{ display: 'block', margin: '10px auto 0', background: 'none', border: 'none', fontSize: 12, padding: 0 }}
+              className="link-action"
+              style={{ display: 'block', margin: '10px auto 0', fontSize: 12 }}
             >
               ⏭ Machine prise — mettre de côté, j'y reviens plus tard
             </button>

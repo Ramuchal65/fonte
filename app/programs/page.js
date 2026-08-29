@@ -109,8 +109,8 @@ export default function ProgramsPage() {
                   </button>
                 ) : (
                   <button
-                    className="muted"
-                    style={{ background: 'none', border: 'none', fontSize: 13 }}
+                    className="link-action"
+                    style={{ fontSize: 13 }}
                     onClick={() => setConfirmingDelete(p.id)}
                   >
                     Supprimer

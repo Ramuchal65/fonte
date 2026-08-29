@@ -262,8 +262,8 @@ export default function HistoryPage() {
       {selected && (
         <>
           <button
-            className="muted"
-            style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, marginBottom: 16, padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            className="link-action"
+            style={{ fontSize: 13, marginBottom: 16, display: 'inline-flex', alignItems: 'center', gap: 4 }}
             onClick={() => { setSelected(null); setEntries([]) }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -76,7 +76,7 @@ export default function ProfilePage() {
       </div>
 
       <div style={{ textAlign: 'center', marginTop: 16 }}>
-        <Link href="/corps" className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
+        <Link href="/corps" className="link-action" style={{ fontSize: 13 }}>
           ⚖️ Suivi du poids et des mensurations
         </Link>
       </div>
