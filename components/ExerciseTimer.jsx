@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useWakeLock } from '@/lib/useWakeLock'
 
 // Contrairement à RestTimer (qui démarre automatiquement), celui-ci attend
 // un appui sur "Démarrer" — le temps de se mettre en position — puis
@@ -10,6 +11,8 @@ export default function ExerciseTimer({ targetSeconds, onComplete, resetKey }) {
   const [status, setStatus] = useState('idle') // 'idle' | 'running'
   const [remaining, setRemaining] = useState(targetSeconds)
   const intervalRef = useRef(null)
+
+  useWakeLock(status === 'running')
 
   useEffect(() => {
     setStatus('idle')

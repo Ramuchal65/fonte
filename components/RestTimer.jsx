@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { useWakeLock } from '@/lib/useWakeLock'
 
 // Joue un petit bip synthétisé (aucun fichier audio nécessaire).
 function playBeep() {
@@ -24,7 +25,8 @@ function playBeep() {
 export default function RestTimer({ seconds, onDone, resetKey }) {
   const [remaining, setRemaining] = useState(seconds)
   const intervalRef = useRef(null)
-  const wakeLockRef = useRef(null)
+
+  useWakeLock(remaining > 0)
 
   useEffect(() => {
     setRemaining(seconds)
@@ -42,36 +44,6 @@ export default function RestTimer({ seconds, onDone, resetKey }) {
     }, 1000)
     return () => clearInterval(intervalRef.current)
   }, [remaining])
-
-  // Empêche l'écran de se verrouiller pendant le repos (utile sur téléphone :
-  // sinon l'écran s'éteint et on rate le décompte). Relâché à la fin du
-  // repos ou si l'écran se remet en veille (revient automatiquement si
-  // l'onglet redevient visible pendant qu'on est encore en repos).
-  useEffect(() => {
-    if (!('wakeLock' in navigator)) return
-    let cancelled = false
-
-    const acquire = async () => {
-      try {
-        const lock = await navigator.wakeLock.request('screen')
-        if (cancelled) { lock.release(); return }
-        wakeLockRef.current = lock
-      } catch (e) { /* refusé (économie de batterie, etc.) - tant pis */ }
-    }
-    acquire()
-
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible' && !wakeLockRef.current) acquire()
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-
-    return () => {
-      cancelled = true
-      document.removeEventListener('visibilitychange', onVisibility)
-      wakeLockRef.current?.release().catch(() => {})
-      wakeLockRef.current = null
-    }
-  }, [])
 
   const pct = Math.max(0, Math.min(1, remaining / seconds))
   const mm = Math.floor(Math.max(remaining, 0) / 60)
