@@ -34,8 +34,8 @@ export default function TopNav({
         <Link
           href="/"
           onClick={goHome}
-          className="muted"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, textDecoration: 'none', flexShrink: 0 }}
+          className="link-action"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14, flexShrink: 0 }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />
@@ -59,8 +59,8 @@ export default function TopNav({
             </span>
           ) : (
             <button
-              className="muted"
-              style={{ background: 'none', border: 'none', fontSize: 13, padding: 0, flexShrink: 0 }}
+              className="link-action"
+              style={{ fontSize: 13, flexShrink: 0 }}
               onClick={() => setConfirming('abandon')}
             >
               {abandonLabel}

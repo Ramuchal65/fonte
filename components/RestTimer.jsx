@@ -84,16 +84,16 @@ export default function RestTimer({ seconds, onDone, resetKey }) {
           <button
             type="button"
             onClick={() => setRemaining(r => Math.max(0, r - 15))}
-            className="muted"
-            style={{ background: 'none', border: 'none', fontSize: 12, padding: '4px 8px' }}
+            className="link-action"
+            style={{ fontSize: 12, padding: '4px 8px' }}
           >
             −15s
           </button>
           <button
             type="button"
             onClick={() => setRemaining(r => r + 15)}
-            className="muted"
-            style={{ background: 'none', border: 'none', fontSize: 12, padding: '4px 8px' }}
+            className="link-action"
+            style={{ fontSize: 12, padding: '4px 8px' }}
           >
             +15s
           </button>
