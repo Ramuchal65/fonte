@@ -7,10 +7,12 @@ import AvatarBuilder from '@/components/AvatarBuilder'
 import TopNav from '@/components/TopNav'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
 import { recordAvatarSaved } from '@/lib/gamification'
+import { useTheme } from '@/lib/useTheme'
 
 export default function ProfilePage() {
   const supabase = createClient()
   const router = useRouter()
+  const { theme, toggle: toggleTheme } = useTheme()
   const [user, setUser] = useState(undefined)
   const [profile, setProfile] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -66,7 +68,14 @@ export default function ProfilePage() {
       />
       {saved && <p style={{ color: 'var(--accent-rest)', marginTop: 12, textAlign: 'center' }}>Profil mis à jour ✓</p>}
 
-      <div style={{ textAlign: 'center', marginTop: 24 }}>
+      <div className="card" style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: 14 }}>{theme === 'dark' ? '🌙 Thème sombre' : '☀️ Thème clair'}</span>
+        <button className="btn btn-secondary" style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }} onClick={toggleTheme}>
+          Passer en {theme === 'dark' ? 'clair' : 'sombre'}
+        </button>
+      </div>
+
+      <div style={{ textAlign: 'center', marginTop: 16 }}>
         <Link href="/corps" className="muted" style={{ fontSize: 13, fontWeight: 600 }}>
           ⚖️ Suivi du poids et des mensurations
         </Link>

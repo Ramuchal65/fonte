@@ -13,6 +13,19 @@
   --font-body: 'Inter', sans-serif;
 }
 
+[data-theme="light"] {
+  --bg: #F5F3EC;
+  --surface: #FFFFFF;
+  --surface-raised: #ECE8D9;
+  --text: #201F17;
+  --text-muted: #706C58;
+  --accent: #D9432F;
+  --accent-rest: #2F6E5F;
+  --border: #DFDAC5;
+}
+
+html { transition: background 0.2s ease; }
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -146,6 +159,12 @@ input[type="text"], input[type="number"], textarea, select {
 textarea { min-height: 220px; resize: vertical; }
 
 .muted { color: var(--text-muted); }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeInUp 0.22s ease; }
 
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

@@ -102,10 +102,10 @@ export default function SessionPage() {
   const [elapsed, setElapsed] = useState(0)
   const [inputs, setInputs] = useState({ reps: '', weight: '' })
   const [rpe, setRpe] = useState(null)
-  const [showRpe, setShowRpe] = useState(false)
+  const [showMore, setShowMore] = useState(false)
   const [notesByExercise, setNotesByExercise] = useState({})
-  const [showNote, setShowNote] = useState(false)
   const [showPlateCalc, setShowPlateCalc] = useState(false)
+  const [sessionVolume, setSessionVolume] = useState(0)
   // Pile de navigation : permet de revenir à l'écran précédent (repos ou
   // exercice). Si l'étape qu'on annule avait déjà été loggée, on supprime
   // la série en base pour éviter un doublon si on la reloggue.
@@ -216,8 +216,7 @@ export default function SessionPage() {
 
   useEffect(() => {
     setShowDemo(false)
-    setShowNote(false)
-    setShowRpe(false)
+    setShowMore(false)
     setRpe(null)
   }, [currentStep])
 
@@ -244,9 +243,11 @@ export default function SessionPage() {
       weight_kg: inputs.weight ? Number(inputs.weight) : 0,
       rpe: rpe
     }).select().single()
-    setHistory(h => [...h, { stepIdx, phase, loggedSetId: inserted?.id ?? null }])
+    const volumeDelta = Number(inputs.reps) * (inputs.weight ? Number(inputs.weight) : 0)
+    setHistory(h => [...h, { stepIdx, phase, loggedSetId: inserted?.id ?? null, volumeDelta }])
     setInputs({ reps: '', weight: '' })
     setRpe(null)
+    setSessionVolume(v => v + volumeDelta)
     advanceAfterLogging()
   }
 
@@ -287,6 +288,9 @@ export default function SessionPage() {
     setHistory(h => h.slice(0, -1))
     if (last.loggedSetId) {
       await supabase.from('logged_sets').delete().eq('id', last.loggedSetId)
+    }
+    if (last.volumeDelta) {
+      setSessionVolume(v => v - last.volumeDelta)
     }
     setStepIdx(last.stepIdx)
     setPhase(last.phase)
@@ -363,11 +367,12 @@ export default function SessionPage() {
         ) : <span />}
         <p className="muted tabular" style={{ fontSize: 13 }}>
           Étape {Math.min(stepIdx + 1, steps.length)} / {steps.length}
+          {sessionVolume > 0 && <> · {Math.round(sessionVolume)} kg soulevés</>}
         </p>
       </div>
 
       {phase === 'resting' && currentStep && (
-        <>
+        <div key={`rest-${stepIdx}`} className="fade-in">
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}>
             <CoachAvatar avatar={profileAvatar} mode="resting" size={110} />
           </div>
@@ -377,11 +382,11 @@ export default function SessionPage() {
               Ensuite : <strong style={{ color: 'var(--text)' }}>{nextStep.exerciseName}</strong>
             </p>
           )}
-        </>
+        </div>
       )}
 
       {phase === 'exercise' && currentStep && (
-        <div className="card">
+        <div key={`exo-${stepIdx}-${currentStep.exerciseName}-${currentStep.round}`} className="card fade-in">
           {(() => {
             const gifFile = exerciseGifs[currentStep.exerciseName]
             if (gifFile && showDemo) {
@@ -473,55 +478,49 @@ export default function SessionPage() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowRpe(v => !v)}
-                  className="muted"
-                  style={{ background: 'none', border: 'none', fontSize: 12, padding: 0 }}
-                >
-                  {rpe ? `RPE ${rpe} ✓` : '+ RPE'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNote(v => !v)}
-                  className="muted"
-                  style={{ background: 'none', border: 'none', fontSize: 12, padding: 0 }}
-                >
-                  {notesByExercise[currentStep.exerciseName] ? '📝 Note ✓' : '+ Note'}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowMore(v => !v)}
+                className="muted"
+                style={{ background: 'none', border: 'none', fontSize: 12, padding: 0, marginBottom: 12, display: 'block' }}
+              >
+                {showMore ? '▲ Moins d\'options' : '⋯ Plus d\'options (RPE, note)'}
+                {(rpe || notesByExercise[currentStep.exerciseName]) && !showMore && ' ✓'}
+              </button>
 
-              {showRpe && (
-                <div style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap' }}>
-                  {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
-                    <button
-                      key={n}
-                      type="button"
-                      onClick={() => setRpe(n)}
-                      className="tabular"
-                      style={{
-                        width: 28, height: 28, borderRadius: 6, fontSize: 12,
-                        border: '1px solid var(--border)',
-                        background: rpe === n ? 'var(--accent-rest)' : 'var(--surface-raised)',
-                        color: rpe === n ? '#14140F' : 'var(--text)'
-                      }}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {showMore && (
+                <>
+                  <div style={{ marginBottom: 8 }}>
+                    <p className="muted" style={{ fontSize: 11, marginBottom: 4 }}>RPE (difficulté ressentie)</p>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map(n => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setRpe(n === rpe ? null : n)}
+                          className="tabular"
+                          style={{
+                            width: 28, height: 28, borderRadius: 6, fontSize: 12,
+                            border: '1px solid var(--border)',
+                            background: rpe === n ? 'var(--accent-rest)' : 'var(--surface-raised)',
+                            color: rpe === n ? '#14140F' : 'var(--text)'
+                          }}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              {showNote && (
-                <textarea
-                  value={notesByExercise[currentStep.exerciseName] || ''}
-                  onChange={e => setNotesByExercise(prev => ({ ...prev, [currentStep.exerciseName]: e.target.value }))}
-                  onBlur={e => saveExerciseNote(supabase, sessionId, currentStep.exerciseName, e.target.value)}
-                  placeholder="Ex : épaule qui tirait un peu, à surveiller…"
-                  rows={2}
-                  style={{ width: '100%', marginBottom: 12, fontSize: 13 }}
-                />
+                  <textarea
+                    value={notesByExercise[currentStep.exerciseName] || ''}
+                    onChange={e => setNotesByExercise(prev => ({ ...prev, [currentStep.exerciseName]: e.target.value }))}
+                    onBlur={e => saveExerciseNote(supabase, sessionId, currentStep.exerciseName, e.target.value)}
+                    placeholder="Note (ex : épaule qui tirait un peu, à surveiller…)"
+                    rows={2}
+                    style={{ width: '100%', marginBottom: 12, fontSize: 13 }}
+                  />
+                </>
               )}
 
               <button className="btn btn-primary btn-block" onClick={finishStep}>

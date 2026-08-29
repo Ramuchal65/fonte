@@ -16,6 +16,8 @@ export default function Home() {
   const [program, setProgram] = useState(null)
   const [days, setDays] = useState([])
   const [daysWithHistory, setDaysWithHistory] = useState(new Set())
+  const [nextDayId, setNextDayId] = useState(null)
+  const [streakDays, setStreakDays] = useState(0)
   const [duplicating, setDuplicating] = useState(null)
   const [loading, setLoading] = useState(true)
   const [xpProgress, setXpProgress] = useState(null)
@@ -56,6 +58,13 @@ export default function Home() {
         })
         .catch(() => { /* purement décoratif, on ignore silencieusement */ })
 
+      supabase
+        .from('user_stats')
+        .select('streak_days')
+        .eq('user_id', user.id)
+        .maybeSingle()
+        .then(({ data }) => { if (!cancelled) setStreakDays(data?.streak_days ?? 0) })
+
       const { data: prog } = await supabase
         .from('programs')
         .select('id, name, created_at')
@@ -79,11 +88,31 @@ export default function Home() {
         if (d?.length) {
           const { data: sessRows } = await supabase
             .from('sessions')
-            .select('program_day_id')
+            .select('program_day_id, finished_at')
             .in('program_day_id', d.map(x => x.id))
             .eq('user_id', user.id)
             .not('finished_at', 'is', null)
-          if (!cancelled) setDaysWithHistory(new Set((sessRows ?? []).map(s => s.program_day_id)))
+            .order('finished_at', { ascending: false })
+
+          if (!cancelled) {
+            setDaysWithHistory(new Set((sessRows ?? []).map(s => s.program_day_id)))
+
+            // Jour "suivant" = celui dont la dernière séance terminée est la
+            // plus ancienne (jamais fait = priorité absolue), dans l'ordre
+            // du programme en cas d'égalité — fait tourner la répartition
+            // naturellement sans rien configurer de plus.
+            const lastDoneByDay = {}
+            for (const s of sessRows ?? []) {
+              if (!(s.program_day_id in lastDoneByDay)) lastDoneByDay[s.program_day_id] = s.finished_at
+            }
+            const sorted = [...d].sort((a, b) => {
+              const da = lastDoneByDay[a.id] ?? ''
+              const db = lastDoneByDay[b.id] ?? ''
+              if (da === db) return a.position - b.position
+              return da.localeCompare(db)
+            })
+            setNextDayId(sorted[0]?.id ?? null)
+          }
         }
       } else {
         setDays([])
@@ -112,11 +141,19 @@ export default function Home() {
 
   return (
     <div className="container">
-      <AppHeader
-        pseudo={profile.pseudo}
-        avatar={{ ...DEFAULT_AVATAR, ...profile.avatar }}
-        xpProgress={xpProgress}
-      />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <AppHeader
+          pseudo={profile.pseudo}
+          avatar={{ ...DEFAULT_AVATAR, ...profile.avatar }}
+          xpProgress={xpProgress}
+          noMargin
+        />
+        {streakDays > 0 && (
+          <span className="tabular" style={{ fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
+            🔥 {streakDays} jour{streakDays > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
 
       {loading && <p className="muted">Chargement…</p>}
 
@@ -132,37 +169,53 @@ export default function Home() {
         <>
           <p className="muted" style={{ marginBottom: 16 }}>{program.name}</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {days.map(day => (
-              <div key={day.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <Link
-                  href={`/session/${day.id}`}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            {days.map(day => {
+              const isNext = day.id === nextDayId
+              return (
+                <div
+                  key={day.id}
+                  className="card"
+                  style={{
+                    display: 'flex', flexDirection: 'column', gap: 10,
+                    borderColor: isNext ? 'var(--accent-rest)' : undefined,
+                    borderWidth: isNext ? 2 : 1
+                  }}
                 >
-                  <span className="display" style={{ fontSize: 20 }}>{day.label}</span>
-                  <span className="muted">Démarrer →</span>
-                </Link>
-                {daysWithHistory.has(day.id) && (
-                  <button
-                    className="btn btn-secondary"
-                    style={{ fontSize: 13, padding: '8px 12px', minHeight: 'auto' }}
-                    disabled={duplicating === day.id}
-                    onClick={async (e) => {
-                      e.preventDefault()
-                      setDuplicating(day.id)
-                      try {
-                        await duplicateLastSession(supabase, user.id, day.id)
-                        router.push('/salle')
-                      } catch (err) {
-                        console.error(err)
-                        setDuplicating(null)
-                      }
-                    }}
+                  {isNext && (
+                    <span className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--accent-rest)' }}>
+                      ● Prochaine séance
+                    </span>
+                  )}
+                  <Link
+                    href={`/session/${day.id}`}
+                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                   >
-                    {duplicating === day.id ? 'Duplication…' : '⧉ Refaire la dernière séance à l\'identique'}
-                  </button>
-                )}
-              </div>
-            ))}
+                    <span className="display" style={{ fontSize: 20 }}>{day.label}</span>
+                    <span className="muted">Démarrer →</span>
+                  </Link>
+                  {daysWithHistory.has(day.id) && (
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: 13, padding: '8px 12px', minHeight: 'auto' }}
+                      disabled={duplicating === day.id}
+                      onClick={async (e) => {
+                        e.preventDefault()
+                        setDuplicating(day.id)
+                        try {
+                          await duplicateLastSession(supabase, user.id, day.id)
+                          router.push('/salle')
+                        } catch (err) {
+                          console.error(err)
+                          setDuplicating(null)
+                        }
+                      }}
+                    >
+                      {duplicating === day.id ? 'Duplication…' : '⧉ Refaire la dernière séance à l\'identique'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </>
       )}
