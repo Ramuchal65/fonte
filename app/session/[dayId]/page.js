@@ -202,6 +202,9 @@ export default function SessionPage() {
 
   // Pré-remplit répétitions (minimum de l'objectif, "8-12" -> 8) ET poids
   // (dernière performance connue sur cette série) à chaque nouvel exercice.
+  // Dépend de currentStep lui-même (pas juste stepIdx) : "Mettre de côté"
+  // réordonne le tableau sans changer stepIdx, il faut donc détecter le
+  // changement de CONTENU à cette position, pas juste le numéro d'étape.
   useEffect(() => {
     if (!currentStep || currentStep.targetType === 'time') return
     const match = String(currentStep.targetReps ?? '').match(/\d+/)
@@ -209,14 +212,14 @@ export default function SessionPage() {
       reps: match ? match[0] : '',
       weight: previousForCurrent ? String(previousForCurrent.weight_kg) : ''
     })
-  }, [stepIdx, steps.length, previousForCurrent])
+  }, [currentStep, previousForCurrent])
 
   useEffect(() => {
     setShowDemo(false)
     setShowNote(false)
     setShowRpe(false)
     setRpe(null)
-  }, [stepIdx])
+  }, [currentStep])
 
   const advanceAfterLogging = () => {
     const isLastStep = stepIdx === steps.length - 1
@@ -262,6 +265,20 @@ export default function SessionPage() {
     setHistory(h => [...h, { stepIdx, phase, loggedSetId: null }])
     setStepIdx(i => i + 1)
     setPhase('exercise')
+  }
+
+  // Renvoie l'exercice courant à la toute fin de la file, sans le logger ni
+  // passer par le repos — pour le cas classique "la machine est prise, j'y
+  // reviendrai plus tard dans la séance". stepIdx ne bouge pas : comme
+  // l'étape courante quitte cette position, c'est l'étape suivante qui
+  // vient naturellement s'y placer.
+  const setAsideStep = () => {
+    setSteps(prev => {
+      const next = [...prev]
+      const [moved] = next.splice(stepIdx, 1)
+      next.push(moved)
+      return next
+    })
   }
 
   const goBack = async () => {
@@ -517,6 +534,16 @@ export default function SessionPage() {
             <p className="muted" style={{ textAlign: 'center', fontSize: 12, marginTop: 12 }}>
               Ensuite : {nextStep.exerciseName}
             </p>
+          )}
+
+          {stepIdx < steps.length - 1 && (
+            <button
+              onClick={setAsideStep}
+              className="muted"
+              style={{ display: 'block', margin: '10px auto 0', background: 'none', border: 'none', fontSize: 12, padding: 0 }}
+            >
+              ⏭ Machine prise — mettre de côté, j'y reviens plus tard
+            </button>
           )}
         </div>
       )}
