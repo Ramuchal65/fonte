@@ -88,31 +88,41 @@ export default function ProfilePage() {
         <div className="card" style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 14 }}>🔔 Rappel de séance</span>
-            <button
-              className="btn btn-secondary"
-              style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}
-              disabled={pushBusy}
-              onClick={async () => {
-                setPushBusy(true)
-                setPushError('')
-                try {
-                  if (pushState === 'subscribed') {
-                    await unsubscribeFromPush(supabase)
-                    setPushState('not-subscribed')
-                  } else {
-                    await subscribeToPush(supabase, user.id)
-                    setPushState('subscribed')
+            {pushState === 'blocked' ? (
+              <span className="muted" style={{ fontSize: 12 }}>Bloqué par le navigateur</span>
+            ) : (
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}
+                disabled={pushBusy}
+                onClick={async () => {
+                  setPushBusy(true)
+                  setPushError('')
+                  try {
+                    if (pushState === 'subscribed') {
+                      await unsubscribeFromPush(supabase)
+                      setPushState('not-subscribed')
+                    } else {
+                      await subscribeToPush(supabase, user.id)
+                      setPushState('subscribed')
+                    }
+                  } catch (e) {
+                    console.error(e)
+                    setPushError(e.message || 'Erreur inconnue')
+                    if (Notification.permission === 'denied') setPushState('blocked')
                   }
-                } catch (e) {
-                  console.error(e)
-                  setPushError(e.message || 'Erreur inconnue')
-                }
-                setPushBusy(false)
-              }}
-            >
-              {pushBusy ? '…' : pushState === 'subscribed' ? 'Désactiver' : 'Activer'}
-            </button>
+                  setPushBusy(false)
+                }}
+              >
+                {pushBusy ? '…' : pushState === 'subscribed' ? 'Désactiver' : 'Activer'}
+              </button>
+            )}
           </div>
+          {pushState === 'blocked' && (
+            <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Réautorise les notifications depuis les paramètres du navigateur (icône ⓘ à côté de l'adresse → Autorisations → Notifications), puis recharge cette page.
+            </p>
+          )}
           {pushError && (
             <p style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>{pushError}</p>
           )}
