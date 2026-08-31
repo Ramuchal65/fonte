@@ -22,13 +22,20 @@ function StatBlock({ label, value }) {
 export default function SessionSummary({ summary, onContinue }) {
   const {
     duration_seconds, total_sets, total_reps, total_volume_kg,
-    has_previous, is_better, comparable_exercises, improved_exercises,
+    has_previous, is_better, comparable_sets, improved_sets, improved_sets_detail,
     base_xp, bonus_xp, xp_earned,
     level_in_category, max_level, xp_into_level, xp_needed_for_next,
     new_achievements
   } = summary
 
   const xpPct = Math.min(100, Math.round((xp_into_level / xp_needed_for_next) * 100))
+
+  // Regroupe les séries améliorées par exercice, pour un affichage lisible
+  // ("Développé couché (série 1, 3)") plutôt qu'une liste plate.
+  const improvedByExercise = {}
+  for (const s of improved_sets_detail ?? []) {
+    (improvedByExercise[s.exercise_name] ??= []).push(s.set_number)
+  }
 
   return (
     <div className="container" style={{ paddingTop: 48 }}>
@@ -45,16 +52,23 @@ export default function SessionSummary({ summary, onContinue }) {
       </div>
 
       <div className="card" style={{ marginBottom: 16, borderColor: is_better ? 'var(--accent-rest)' : undefined }}>
-        {has_previous && comparable_exercises > 0 ? (
-          improved_exercises === comparable_exercises ? (
+        {has_previous && comparable_sets > 0 ? (
+          improved_sets === comparable_sets ? (
             <p>
-              <strong style={{ color: 'var(--accent-rest)' }}>Meilleure séance sur toute la ligne</strong> — progression sur les {comparable_exercises} exercice{comparable_exercises > 1 ? 's' : ''} comparé{comparable_exercises > 1 ? 's' : ''} à la dernière fois.
+              <strong style={{ color: 'var(--accent-rest)' }}>Meilleure séance sur toute la ligne</strong> — les {comparable_sets} série{comparable_sets > 1 ? 's' : ''} comparables à la dernière fois sont toutes en progrès.
             </p>
-          ) : improved_exercises > 0 ? (
-            <p>
-              <strong style={{ color: 'var(--accent-rest)' }}>Progression</strong> sur {improved_exercises} exercice{improved_exercises > 1 ? 's' : ''} sur {comparable_exercises} par rapport à la dernière fois
-              {is_better ? ' — dans l\'ensemble, meilleure séance !' : '.'}
-            </p>
+          ) : improved_sets > 0 ? (
+            <>
+              <p style={{ marginBottom: improvedByExercise && Object.keys(improvedByExercise).length > 0 ? 8 : 0 }}>
+                <strong style={{ color: 'var(--accent-rest)' }}>Progression</strong> sur {improved_sets} série{improved_sets > 1 ? 's' : ''} sur {comparable_sets} par rapport à la dernière fois
+                {is_better ? ' — dans l\'ensemble, meilleure séance !' : '.'}
+              </p>
+              {Object.entries(improvedByExercise).map(([name, sets]) => (
+                <p key={name} className="muted" style={{ fontSize: 12 }}>
+                  {name} — série{sets.length > 1 ? 's' : ''} {sets.sort((a, b) => a - b).join(', ')}
+                </p>
+              ))}
+            </>
           ) : (
             <p className="muted">
               Pas de progression détectée par rapport à la dernière fois sur cet entraînement — la prochaine sera la bonne.

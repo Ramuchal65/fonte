@@ -18,6 +18,12 @@ export default function AppShell({ children }) {
   useTheme() // applique le thème sauvegardé dès le premier rendu, sur toutes les pages
 
   useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => { /* pas grave, juste pas de push */ })
+    }
+  }, [])
+
+  useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setLoggedIn(!!data.user))
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
