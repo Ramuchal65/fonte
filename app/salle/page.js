@@ -102,7 +102,10 @@ export default function SallePage() {
         />
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, marginBottom: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+        <Link href="/equilibre" className="link-action" style={{ fontSize: 13 }}>
+          ⚖️ Équilibre
+        </Link>
         <Link href="/bilan" className="link-action" style={{ fontSize: 13 }}>
           📊 Mon bilan
         </Link>

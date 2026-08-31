@@ -8,6 +8,7 @@ import TopNav from '@/components/TopNav'
 import { DEFAULT_AVATAR } from '@/lib/avatarOptions'
 import { recordAvatarSaved } from '@/lib/gamification'
 import { useTheme } from '@/lib/useTheme'
+import { pushSupported, getPushSubscriptionState, subscribeToPush, unsubscribeFromPush } from '@/lib/push'
 
 export default function ProfilePage() {
   const supabase = createClient()
@@ -16,8 +17,15 @@ export default function ProfilePage() {
   const [user, setUser] = useState(undefined)
   const [profile, setProfile] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [pushState, setPushState] = useState('checking') // unsupported | not-subscribed | subscribed | checking
+  const [pushBusy, setPushBusy] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    getPushSubscriptionState().then(setPushState)
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -74,6 +82,62 @@ export default function ProfilePage() {
           Passer en {theme === 'dark' ? 'clair' : 'sombre'}
         </button>
       </div>
+
+      {pushState !== 'unsupported' && pushState !== 'checking' && (
+        <div className="card" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 14 }}>🔔 Rappel de séance</span>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}
+            disabled={pushBusy}
+            onClick={async () => {
+              setPushBusy(true)
+              try {
+                if (pushState === 'subscribed') {
+                  await unsubscribeFromPush(supabase)
+                  setPushState('not-subscribed')
+                } else {
+                  await subscribeToPush(supabase, user.id)
+                  setPushState('subscribed')
+                }
+              } catch (e) {
+                console.error(e)
+              }
+              setPushBusy(false)
+            }}
+          >
+            {pushBusy ? '…' : pushState === 'subscribed' ? 'Désactiver' : 'Activer'}
+          </button>
+        </div>
+      )}
+
+      <button
+        className="link-action"
+        style={{ fontSize: 13, display: 'block', margin: '16px auto 0' }}
+        disabled={exporting}
+        onClick={async () => {
+          setExporting(true)
+          try {
+            const [{ data: programs }, { data: sessions }, { data: measurements }] = await Promise.all([
+              supabase.from('programs').select('*, program_days(*, exercise_groups(*, group_exercises(*)))').eq('user_id', user.id),
+              supabase.from('sessions').select('*, logged_sets(*)').eq('user_id', user.id),
+              supabase.from('body_measurements').select('*').eq('user_id', user.id)
+            ])
+            const payload = { exported_at: new Date().toISOString(), programs, sessions, body_measurements: measurements }
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `fonte-export-${new Date().toISOString().slice(0, 10)}.json`
+            a.click()
+            URL.revokeObjectURL(url)
+          } finally {
+            setExporting(false)
+          }
+        }}
+      >
+        {exporting ? 'Préparation…' : '⬇️ Exporter mes données (JSON)'}
+      </button>
 
       <div style={{ textAlign: 'center', marginTop: 16 }}>
         <Link href="/corps" className="link-action" style={{ fontSize: 13 }}>

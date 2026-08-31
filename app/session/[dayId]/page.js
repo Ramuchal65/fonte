@@ -106,6 +106,7 @@ export default function SessionPage() {
   const [notesByExercise, setNotesByExercise] = useState({})
   const [showPlateCalc, setShowPlateCalc] = useState(false)
   const [sessionVolume, setSessionVolume] = useState(0)
+  const [lastLoggedThisSession, setLastLoggedThisSession] = useState({})
   // Pile de navigation : permet de revenir à l'écran précédent (repos ou
   // exercice). Si l'étape qu'on annule avait déjà été loggée, on supprime
   // la série en base pour éviter un doublon si on la reloggue.
@@ -170,12 +171,15 @@ export default function SessionPage() {
           .eq('exercise_name', name)
           .eq('sessions.user_id', u.id)
           .order('logged_at', { ascending: false })
-          .limit(50)
-        // Pour chaque numéro de série/tour, on ne garde que l'entrée la plus récente
+          .limit(80)
+        // Pour chaque numéro de série/tour, on garde les 2 dernières occurrences
+        // (pas juste la dernière) — nécessaire pour suggérer une progression de
+        // charge : il faut voir si les 2 dernières fois l'objectif était atteint.
         const bySetNumber = {}
         for (const s of sets ?? []) {
-          if (!(s.set_number in bySetNumber)) bySetNumber[s.set_number] = s
+          (bySetNumber[s.set_number] ??= []).push(s)
         }
+        for (const k in bySetNumber) bySetNumber[k] = bySetNumber[k].slice(0, 2)
         perfs[name] = bySetNumber
       }
       setPreviousPerf(perfs)
@@ -196,8 +200,28 @@ export default function SessionPage() {
 
   const previousForCurrent = useMemo(() => {
     if (!currentStep) return null
-    const bySetNumber = previousPerf[currentStep.exerciseName] || {}
-    return bySetNumber[currentStep.round] || null
+    const history = previousPerf[currentStep.exerciseName]?.[currentStep.round]
+    return history?.[0] || null
+  }, [currentStep, previousPerf])
+
+  // Suggestion de charge : si les 2 dernières fois sur CETTE série précise
+  // (même exercice, même numéro de série) l'objectif de reps était atteint
+  // au même poids, on suggère une petite progression plutôt que de répéter
+  // platement le même poids. Si l'objectif n'était pas atteint la dernière
+  // fois, on ne suggère rien — pas question de pousser vers l'échec.
+  const weightSuggestion = useMemo(() => {
+    if (!currentStep || currentStep.targetType === 'time') return null
+    const history = previousPerf[currentStep.exerciseName]?.[currentStep.round]
+    if (!history || history.length < 2) return null
+    const [last, prev] = history
+    const targetNumbers = String(currentStep.targetReps ?? '').match(/\d+/g)?.map(Number) ?? []
+    const targetMax = targetNumbers.length ? Math.max(...targetNumbers) : null
+    if (!targetMax) return null
+    const bothHitTarget = last.reps >= targetMax && prev.reps >= targetMax
+    const sameWeight = last.weight_kg === prev.weight_kg && last.weight_kg > 0
+    if (!bothHitTarget || !sameWeight) return null
+    const increment = last.weight_kg >= 40 ? 2.5 : last.weight_kg >= 15 ? 1.25 : 0.5
+    return { weight: Math.round((last.weight_kg + increment) * 100) / 100, increment }
   }, [currentStep, previousPerf])
 
   // Pré-remplit répétitions (minimum de l'objectif, "8-12" -> 8) ET poids
@@ -210,9 +234,9 @@ export default function SessionPage() {
     const match = String(currentStep.targetReps ?? '').match(/\d+/)
     setInputs({
       reps: match ? match[0] : '',
-      weight: previousForCurrent ? String(previousForCurrent.weight_kg) : ''
+      weight: weightSuggestion ? String(weightSuggestion.weight) : previousForCurrent ? String(previousForCurrent.weight_kg) : ''
     })
-  }, [currentStep, previousForCurrent])
+  }, [currentStep, previousForCurrent, weightSuggestion])
 
   useEffect(() => {
     setShowDemo(false)
@@ -245,6 +269,10 @@ export default function SessionPage() {
     }).select().single()
     const volumeDelta = Number(inputs.reps) * (inputs.weight ? Number(inputs.weight) : 0)
     setHistory(h => [...h, { stepIdx, phase, loggedSetId: inserted?.id ?? null, volumeDelta }])
+    setLastLoggedThisSession(prev => ({
+      ...prev,
+      [currentStep.exerciseName]: { reps: inputs.reps, weight: inputs.weight }
+    }))
     setInputs({ reps: '', weight: '' })
     setRpe(null)
     setSessionVolume(v => v + volumeDelta)
@@ -434,7 +462,7 @@ export default function SessionPage() {
           </div>
 
           <h2 style={{ fontSize: 24, marginBottom: 8 }}>{currentStep.exerciseName}</h2>
-          <p className="muted" style={{ fontSize: 14, marginBottom: 16 }}>
+          <p className="muted" style={{ fontSize: 14, marginBottom: weightSuggestion ? 4 : 16 }}>
             {currentStep.targetType === 'time' ? (
               `Cible : ${Math.floor(currentStep.targetSeconds / 60) > 0 ? `${Math.floor(currentStep.targetSeconds / 60)} min ` : ''}${currentStep.targetSeconds % 60 ? `${currentStep.targetSeconds % 60} s` : ''}`.trim()
             ) : (
@@ -445,6 +473,21 @@ export default function SessionPage() {
               </>
             )}
           </p>
+          {weightSuggestion && (
+            <p style={{ fontSize: 13, marginBottom: 16, color: 'var(--accent-rest)' }}>
+              💪 Objectif atteint les 2 dernières fois — essaie +{weightSuggestion.increment} kg aujourd'hui
+            </p>
+          )}
+          {currentStep.targetType !== 'time' && lastLoggedThisSession[currentStep.exerciseName] && (
+            <button
+              type="button"
+              className="link-action"
+              style={{ fontSize: 12, marginBottom: 12, display: 'block' }}
+              onClick={() => setInputs({ ...lastLoggedThisSession[currentStep.exerciseName] })}
+            >
+              ⟳ Même que la série précédente ({lastLoggedThisSession[currentStep.exerciseName].weight} kg × {lastLoggedThisSession[currentStep.exerciseName].reps})
+            </button>
+          )}
 
           {currentStep.targetType === 'time' ? (
             <ExerciseTimer

@@ -18,6 +18,7 @@ export default function Home() {
   const [daysWithHistory, setDaysWithHistory] = useState(new Set())
   const [nextDayId, setNextDayId] = useState(null)
   const [streakDays, setStreakDays] = useState(0)
+  const [tipOfDay, setTipOfDay] = useState(null)
   const [duplicating, setDuplicating] = useState(null)
   const [loading, setLoading] = useState(true)
   const [xpProgress, setXpProgress] = useState(null)
@@ -65,11 +66,22 @@ export default function Home() {
         .maybeSingle()
         .then(({ data }) => { if (!cancelled) setStreakDays(data?.streak_days ?? 0) })
 
+      supabase
+        .from('exercise_catalog')
+        .select('canonical_name, instructions_fr')
+        .not('instructions_fr', 'is', null)
+        .then(({ data }) => {
+          if (cancelled || !data?.length) return
+          const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 0)) / 86400000)
+          setTipOfDay(data[dayOfYear % data.length])
+        })
+
       const { data: prog } = await supabase
         .from('programs')
         .select('id, name, created_at')
         .eq('user_id', user.id)
         .is('archived_at', null)
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
@@ -218,6 +230,15 @@ export default function Home() {
             })}
           </div>
         </>
+      )}
+
+      {tipOfDay && (
+        <div className="card" style={{ marginTop: 24 }}>
+          <p className="muted" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+            💡 Astuce du jour — {tipOfDay.canonical_name}
+          </p>
+          <p style={{ fontSize: 13, lineHeight: 1.5 }}>{tipOfDay.instructions_fr}</p>
+        </div>
       )}
     </div>
   )
