@@ -19,7 +19,9 @@ export default function AppShell({ children }) {
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => { /* pas grave, juste pas de push */ })
+      navigator.serviceWorker.register('/sw.js').catch(err => {
+        console.error('Échec d\'enregistrement du service worker :', err)
+      })
     }
   }, [])
 
