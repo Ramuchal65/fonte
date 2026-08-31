@@ -20,6 +20,7 @@ export default function ProfilePage() {
   const [exporting, setExporting] = useState(false)
   const [pushState, setPushState] = useState('checking') // unsupported | not-subscribed | subscribed | checking
   const [pushBusy, setPushBusy] = useState(false)
+  const [pushError, setPushError] = useState('')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
@@ -84,31 +85,43 @@ export default function ProfilePage() {
       </div>
 
       {pushState !== 'unsupported' && pushState !== 'checking' && (
-        <div className="card" style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 14 }}>🔔 Rappel de séance</span>
-          <button
-            className="btn btn-secondary"
-            style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}
-            disabled={pushBusy}
-            onClick={async () => {
-              setPushBusy(true)
-              try {
-                if (pushState === 'subscribed') {
-                  await unsubscribeFromPush(supabase)
-                  setPushState('not-subscribed')
-                } else {
-                  await subscribeToPush(supabase, user.id)
-                  setPushState('subscribed')
+        <div className="card" style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 14 }}>🔔 Rappel de séance</span>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '8px 14px', minHeight: 36, fontSize: 13 }}
+              disabled={pushBusy}
+              onClick={async () => {
+                setPushBusy(true)
+                setPushError('')
+                try {
+                  if (pushState === 'subscribed') {
+                    await unsubscribeFromPush(supabase)
+                    setPushState('not-subscribed')
+                  } else {
+                    await subscribeToPush(supabase, user.id)
+                    setPushState('subscribed')
+                  }
+                } catch (e) {
+                  console.error(e)
+                  setPushError(e.message || 'Erreur inconnue')
                 }
-              } catch (e) {
-                console.error(e)
-              }
-              setPushBusy(false)
-            }}
-          >
-            {pushBusy ? '…' : pushState === 'subscribed' ? 'Désactiver' : 'Activer'}
-          </button>
+                setPushBusy(false)
+              }}
+            >
+              {pushBusy ? '…' : pushState === 'subscribed' ? 'Désactiver' : 'Activer'}
+            </button>
+          </div>
+          {pushError && (
+            <p style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>{pushError}</p>
+          )}
         </div>
+      )}
+      {pushState === 'unsupported' && (
+        <p className="muted" style={{ fontSize: 12, marginTop: 12, textAlign: 'center' }}>
+          Les notifications ne sont pas prises en charge par ce navigateur.
+        </p>
       )}
 
       <button
