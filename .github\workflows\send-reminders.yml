@@ -1,0 +1,18 @@
+name: Rappel de séance Fonte
+
+on:
+  schedule:
+    # Toutes les heures, à l'heure pile (UTC). GitHub peut retarder de
+    # quelques minutes en cas de forte charge sur ses serveurs — sans
+    # conséquence pour un rappel quotidien.
+    - cron: '0 * * * *'
+  workflow_dispatch: {}  # bouton "Run workflow" pour tester manuellement
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Appeler la route de rappel
+        run: |
+          curl -f -sS -X GET "https://fonte-olive.vercel.app/api/push/send-reminders" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
