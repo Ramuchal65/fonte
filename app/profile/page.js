@@ -21,6 +21,7 @@ export default function ProfilePage() {
   const [pushState, setPushState] = useState('checking') // unsupported | not-subscribed | subscribed | checking
   const [pushBusy, setPushBusy] = useState(false)
   const [pushError, setPushError] = useState('')
+  const [reminderHourLocal, setReminderHourLocal] = useState(20)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
@@ -36,6 +37,14 @@ export default function ProfilePage() {
       const { data } = await supabase.from('profiles').select('*').eq('user_id', u.id).maybeSingle()
       if (!data) { router.push('/onboarding'); return }
       setProfile(data)
+
+      const { data: stats } = await supabase.from('user_stats').select('reminder_hour_utc').eq('user_id', u.id).maybeSingle()
+      if (stats?.reminder_hour_utc != null) {
+        // Conversion UTC -> heure locale pour l'affichage
+        const ref = new Date()
+        ref.setUTCHours(stats.reminder_hour_utc, 0, 0, 0)
+        setReminderHourLocal(ref.getHours())
+      }
     }
     load()
   }, [])
@@ -122,6 +131,29 @@ export default function ProfilePage() {
             <p className="muted" style={{ fontSize: 12, marginTop: 8 }}>
               Réautorise les notifications depuis les paramètres du navigateur (icône ⓘ à côté de l'adresse → Autorisations → Notifications), puis recharge cette page.
             </p>
+          )}
+          {pushState === 'subscribed' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+              <label className="muted" style={{ fontSize: 12 }}>à</label>
+              <select
+                value={reminderHourLocal}
+                onChange={async (e) => {
+                  const localHour = Number(e.target.value)
+                  setReminderHourLocal(localHour)
+                  // Conversion heure locale -> UTC, calculée dans le navigateur
+                  // de l'utilisateur (seul endroit qui connaît son fuseau).
+                  const ref = new Date()
+                  ref.setHours(localHour, 0, 0, 0)
+                  const utcHour = ref.getUTCHours()
+                  await supabase.from('user_stats').upsert({ user_id: user.id, reminder_hour_utc: utcHour }, { onConflict: 'user_id' })
+                }}
+                style={{ width: 'auto' }}
+              >
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>{String(h).padStart(2, '0')}h00</option>
+                ))}
+              </select>
+            </div>
           )}
           {pushError && (
             <p style={{ fontSize: 12, color: 'var(--accent)', marginTop: 8 }}>{pushError}</p>
