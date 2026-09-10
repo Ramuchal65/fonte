@@ -22,7 +22,7 @@ function StatBlock({ label, value }) {
 export default function SessionSummary({ summary, onContinue }) {
   const {
     duration_seconds, total_sets, total_reps, total_volume_kg,
-    has_previous, is_better, comparable_sets, improved_sets, improved_sets_detail,
+    has_previous, is_better, comparable_sets, improved_sets, set_comparisons,
     base_xp, bonus_xp, xp_earned,
     level_in_category, max_level, xp_into_level, xp_needed_for_next,
     new_achievements
@@ -30,11 +30,22 @@ export default function SessionSummary({ summary, onContinue }) {
 
   const xpPct = Math.min(100, Math.round((xp_into_level / xp_needed_for_next) * 100))
 
-  // Regroupe les séries améliorées par exercice, pour un affichage lisible
-  // ("Développé couché (série 1, 3)") plutôt qu'une liste plate.
-  const improvedByExercise = {}
-  for (const s of improved_sets_detail ?? []) {
-    (improvedByExercise[s.exercise_name] ??= []).push(s.set_number)
+  // Regroupe les lignes de comparaison par exercice, pour un affichage
+  // façon écran de montée de niveau : nom de l'exercice en titre, puis
+  // chaque série avec sa valeur avant -> après et une flèche de couleur.
+  const byExercise = {}
+  for (const s of set_comparisons ?? []) {
+    (byExercise[s.exercise_name] ??= []).push(s)
+  }
+
+  function formatSetValues(s) {
+    if (s.current_duration_seconds != null) {
+      return { before: `${s.previous_duration_seconds ?? '—'} s`, after: `${s.current_duration_seconds} s` }
+    }
+    if (s.current_weight_kg > 0) {
+      return { before: `${s.previous_weight_kg} kg × ${s.previous_reps}`, after: `${s.current_weight_kg} kg × ${s.current_reps}` }
+    }
+    return { before: `${s.previous_reps} reps`, after: `${s.current_reps} reps` }
   }
 
   return (
@@ -51,33 +62,50 @@ export default function SessionSummary({ summary, onContinue }) {
         <StatBlock label="Charge totale" value={`${Math.round(total_volume_kg)} kg`} />
       </div>
 
-      <div className="card" style={{ marginBottom: 16, borderColor: is_better ? 'var(--accent-rest)' : undefined }}>
-        {has_previous && comparable_sets > 0 ? (
-          improved_sets === comparable_sets ? (
-            <p>
-              <strong style={{ color: 'var(--accent-rest)' }}>Meilleure séance sur toute la ligne</strong> — les {comparable_sets} série{comparable_sets > 1 ? 's' : ''} comparables à la dernière fois sont toutes en progrès.
-            </p>
-          ) : improved_sets > 0 ? (
-            <>
-              <p style={{ marginBottom: improvedByExercise && Object.keys(improvedByExercise).length > 0 ? 8 : 0 }}>
-                <strong style={{ color: 'var(--accent-rest)' }}>Progression</strong> sur {improved_sets} série{improved_sets > 1 ? 's' : ''} sur {comparable_sets} par rapport à la dernière fois
+      {has_previous && comparable_sets > 0 ? (
+        <div className="card" style={{ marginBottom: 16, borderColor: is_better ? 'var(--accent-rest)' : undefined }}>
+          <p style={{ marginBottom: 12 }}>
+            {improved_sets === comparable_sets ? (
+              <strong style={{ color: 'var(--accent-rest)' }}>Meilleure séance sur toute la ligne 🎉</strong>
+            ) : improved_sets > 0 ? (
+              <>
+                <strong style={{ color: 'var(--accent-rest)' }}>Progression</strong> sur {improved_sets} série{improved_sets > 1 ? 's' : ''} sur {comparable_sets}
                 {is_better ? ' — dans l\'ensemble, meilleure séance !' : '.'}
-              </p>
-              {Object.entries(improvedByExercise).map(([name, sets]) => (
-                <p key={name} className="muted" style={{ fontSize: 12 }}>
-                  {name} — série{sets.length > 1 ? 's' : ''} {sets.sort((a, b) => a - b).join(', ')}
-                </p>
-              ))}
-            </>
-          ) : (
-            <p className="muted">
-              Pas de progression détectée par rapport à la dernière fois sur cet entraînement — la prochaine sera la bonne.
-            </p>
-          )
-        ) : (
+              </>
+            ) : (
+              <span className="muted">Pas de progression détectée cette fois — la prochaine sera la bonne.</span>
+            )}
+          </p>
+
+          {/* Écran façon "montée de niveau" : chaque série comparée, avec
+              flèche verte si progrès, grise si stable ou en retrait —
+              jamais de rouge alarmant, juste un constat honnête. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {Object.entries(byExercise).map(([name, sets]) => (
+              <div key={name}>
+                <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>{name}</p>
+                {sets.map(s => {
+                  const { before, after } = formatSetValues(s)
+                  const arrow = s.improved ? '▲' : s.unchanged ? '=' : '▼'
+                  const color = s.improved ? 'var(--accent-rest)' : 'var(--text-muted)'
+                  return (
+                    <div key={s.set_number} className="tabular" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 2, paddingLeft: 8 }}>
+                      <span className="muted" style={{ minWidth: 54 }}>Série {s.set_number}</span>
+                      <span className="muted">{before}</span>
+                      <span style={{ color, fontWeight: 700 }}>{arrow}</span>
+                      <span style={{ color, fontWeight: s.improved ? 700 : 400 }}>{after}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="card" style={{ marginBottom: 16 }}>
           <p className="muted">Première séance enregistrée sur cet entraînement — bravo pour la référence !</p>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 }}>
