@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import webpush from 'web-push'
 
-// Déclenchée une fois par jour par Vercel Cron (voir vercel.json).
-// Protégée par CRON_SECRET pour que personne d'autre ne puisse la lancer.
+// Déclenchée toutes les heures par un GitHub Action (voir
+// .github/workflows/send-reminders.yml — le cron intégré de Vercel est
+// limité à 1x/jour sur le plan gratuit, incompatible avec une heure
+// personnalisable par utilisateur). Protégée par CRON_SECRET.
 export async function GET(request) {
   const authHeader = request.headers.get('Authorization')
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -24,6 +26,7 @@ export async function GET(request) {
     process.env.SUPABASE_SERVICE_ROLE_KEY
   )
 
+  const currentUtcHour = new Date().getUTCHours()
   const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0)
 
   const { data: subs } = await supabase.from('push_subscriptions').select('user_id, subscription')
@@ -31,19 +34,31 @@ export async function GET(request) {
 
   const userIds = [...new Set(subs.map(s => s.user_id))]
 
-  // Ne notifie que les utilisateurs qui ont un programme actif ET n'ont
-  // pas encore terminé de séance aujourd'hui.
+  // Ne notifie que les utilisateurs qui : ont choisi CETTE heure comme
+  // rappel, ont un programme actif, et n'ont pas encore terminé de séance
+  // aujourd'hui.
+  const { data: prefs } = await supabase
+    .from('user_stats')
+    .select('user_id, reminder_hour_utc')
+    .in('user_id', userIds)
+    .eq('reminder_hour_utc', currentUtcHour)
+  const wantsThisHourSet = new Set((prefs ?? []).map(p => p.user_id))
+
+  if (wantsThisHourSet.size === 0) {
+    return NextResponse.json({ sent: 0, reason: 'no_one_scheduled_this_hour', hour: currentUtcHour })
+  }
+
   const { data: activePrograms } = await supabase
     .from('programs')
     .select('user_id')
-    .in('user_id', userIds)
+    .in('user_id', [...wantsThisHourSet])
     .is('archived_at', null)
     .is('deleted_at', null)
 
   const { data: doneToday } = await supabase
     .from('sessions')
     .select('user_id')
-    .in('user_id', userIds)
+    .in('user_id', [...wantsThisHourSet])
     .gte('finished_at', todayStart.toISOString())
 
   const doneTodaySet = new Set((doneToday ?? []).map(s => s.user_id))
@@ -68,5 +83,5 @@ export async function GET(request) {
     }
   }
 
-  return NextResponse.json({ sent, eligible: eligibleUserIds.size })
+  return NextResponse.json({ sent, eligible: eligibleUserIds.size, hour: currentUtcHour })
 }
